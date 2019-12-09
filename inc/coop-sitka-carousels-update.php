@@ -27,7 +27,7 @@ global $wpdb;
 // item gets added during the update process it will be captured in the next update
 $date_checked = date('Y-m-d', mktime(0,0,0, date('m'), date('d')-1, date('Y')));
 
-require_once( '/srv/www/libpress.libraries.coop/wp-content/plugins/coop-sitka-carousels/inc/coop-sitka-carousels-constants.php');
+require_once( '/home/ben/coop/libpress/web/wp-content/plugins/coop-sitka-carousels/inc/coop-sitka-carousels-constants.php');
 
 
 // Get all of the active libraries
@@ -134,7 +134,7 @@ foreach($libraries AS $library) {
                                                                   WHERE bibkey = %d", $bibkey), ARRAY_A);
 
             if (count($query_results) == 0) {
-              $wpdb->insert('wp_55_sitka_carousels',
+              $wpdb->insert($wpdb->prefix . 'sitka_carousels',
                 array('carousel_type' => $carousel_type,
                       'date_created' => $date_checked,
                       'bibkey' => $bibkey));
