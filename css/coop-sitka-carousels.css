@@ -1,0 +1,40 @@
+.slick-prev::before, .slick-next::before {
+  color: #000;
+}
+
+.sitka-carousel-container {
+  width: 150px;
+  margin: 0px auto;
+  text-align: center;
+}
+
+.sitka-description {
+  display: none;
+}
+
+.sitka-carousel-image {
+  width: 150px;
+  height: 225px;
+  z-index: 10;
+  position: absolute;
+  top: 0px;
+}
+
+.sitka-carousel-image-default {
+  z-index: 5;
+  position: relative;
+}
+
+.sitka-info {
+  display: inline-block;
+}
+
+.sitka-title {
+  font-size: 0.8em;
+  font-family: 'PT Sans', sans-serif;
+}
+
+.sitka-author {
+  font-size: 0.7em;
+  font-style: italic;
+}

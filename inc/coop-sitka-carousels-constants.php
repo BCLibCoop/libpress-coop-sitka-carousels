@@ -1,16 +1,16 @@
 <?php
 
 // Constant defining all of the possible carousel types - first is default
-#define('CAROUSEL_TYPE', array('adult_fiction',
-#                              'adult_nonfiction',
-#                              'adult_largeprint',
-#                              'adult_dvds',
-#                              'adult_music',
-#                              'teen_fiction',
-#                              'teen_nonfiction',
-#                              'juvenile_fiction',
-#                              'juvenile_nonfiction',
-#                              'juvenile_dvdscds'));
+define('CAROUSEL_TYPE', array('adult_fiction',
+                              'adult_nonfiction',
+                              'adult_largeprint',
+                              'adult_dvds',
+                              'adult_music',
+                              'teen_fiction',
+                              'teen_nonfiction',
+                              'juvenile_fiction',
+                              'juvenile_nonfiction',
+                              'juvenile_dvdscds'));
 
 // Constant defining all of the possible transition types - first is default
 define('CAROUSEL_TRANSITION', array('fade',
@@ -30,7 +30,7 @@ define('CAROUSEL_FORMAT', array('print' => 'search_format(physicalbooks)',
                                 'cd' => 'item_type(j)',
                                 'dvdscds' => 'item_type(g,j)'));
 
-// Image to show if there is no cover image 
+// Image to show if there is no cover image - NEEDS TO BE CHANGED!!!!!
 define('CAROUSEL_NOCOVER', '/wp-content/mu-plugins/coop-sitka-lists/img/nocover.jpg');
 
 // The Evergreen URL
