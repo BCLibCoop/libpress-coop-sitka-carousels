@@ -186,7 +186,7 @@ function sitka_carousels_shortcode( $attr ) {
     $tag_html .= "<div class='sikta-item'>" . 
                    "<a href='" . $row['catalogue_url'] . "'>" .
                      "<img src='" . $row['cover_url'] . "' class='sitka-carousel-image'>" .
-                     "<img src='/wp-content/mu-plugins/coop-sitka-lists/img/nocover.jpg' class='sitka-carousel-image sitka-carousel-image-default'>" .
+                     "<img src='" . plugins_url( 'img/nocover.jpg', __FILE__ ) ."' class='sitka-carousel-image sitka-carousel-image-default'>" .
                      "<div class='sitka-info'>" . 
                        "<span class='sitka-title'>" . $row['title'] . "</span><br />" .
                        "<span class='sitka-author'>" . $row['author'] . "</span>" .
