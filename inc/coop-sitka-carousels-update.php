@@ -31,21 +31,11 @@ require_once( '/home/ben/coop/libpress/web/wp-content/plugins/coop-sitka-carouse
 
 
 // Get all of the active libraries
-#$libraries = $wpdb->get_results( $wpdb->prepare("SELECT blog_id AS blog_id,
-#                                                        domain AS domain
-#                                                   FROM " . $wpdb->prefix . "blogs
-#                                                  WHERE public = %d", 1), ARRAY_A);
-
-
-
-
-
-#  //////////////
-# //TEMP CODE //
-#//////////////
-$libraries = array( array('blog_id' => 55,
-                          'domain' => 'smithers.bc.libraries.coop'));
-#define('CAROUSEL_TYPE', array('adult_fiction'));
+$libraries = $wpdb->get_results( $wpdb->prepare("SELECT blog_id AS blog_id,
+                                                        domain AS domain
+                                                   FROM " . $wpdb->prefix . "blogs
+                                                  WHERE public = %d
+                                               ORDER BY blog_id ASC", 1), ARRAY_A);
 
 
 
