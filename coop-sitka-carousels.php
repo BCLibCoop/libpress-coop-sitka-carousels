@@ -42,13 +42,13 @@ wp_register_style('coop-sitka-carousels-css', plugins_url( 'css/coop-sitka-carou
 wp_enqueue_style('coop-sitka-carousels-css' );
 
 // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
-add_action( 'add_meta_boxes', 'coop_sitka_carousels_meta_box_add' );
+add_action( 'add_meta_boxes', 'coop_sitka_carousels_meta_box_add', 10, 2 );
 
 // Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc. 
 #add_submenu_page( 'sites.php', 'Sitka Libraries', 'Sitka Libraries', 'manage_network', 'sitka-libraries', array(&$sitkalistsadmin,'sitka_libraries_page'));
 
 function coop_sitka_carousels_meta_box_add() {
-  add_meta_box('coop_sitka_carousels', 'Sitka Carousel Placement', array('sitka_carousels_inner_custom_box'), 'highlight', 'side', 'high');
+  add_meta_box('coop_sitka_carousels', 'Sitka Carousel Placement', 'sitka_carousels_inner_custom_box', 'highlight', 'side', 'high');
 }
 
 
@@ -234,7 +234,7 @@ function sitka_carousels_inner_custom_box($post) {
          '<p>Possible values for transition are fade or swipe. Defaults to fade.</p>' .
          '<p>More than one carousel shortcode can be added to a Highlight.</p>';
 
-  return $out;
+  echo $out;
 }
 
 
