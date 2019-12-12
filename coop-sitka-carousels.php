@@ -17,8 +17,13 @@ include('inc/coop-sitka-carousels-constants.php');
 
 global $sitka_carousels_db_version;
 $sitka_carousels_db_version = '0.1.0';
- 
-register_activation_hook( __FILE__, 'sitka_carousels_install' );
+
+// Hook called when plugin is activated, called function checks for
+// network activation on a multisite install
+register_activation_hook( __FILE__, 'sitka_carousels_activate' );
+
+// Action for when a new blog is added to a network install
+add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6 );
 
 // Register sitka_carousel shortcode
 add_shortcode( 'sitka_carousel', 'sitka_carousels_shortcode');
@@ -47,35 +52,77 @@ function coop_sitka_carousels_meta_box_add() {
 }
 
 
-// Callback function for plugin activation 
+// Callback function for site activation - checks for network activation
+function sitka_carousels_activate($network_wide) {
+      if ( is_multisite() && $network_wide ) {
+        // installing across a multisite network, loop through each blog to install
+
+        global $wpdb;
+
+        foreach ($wpdb->get_col("SELECT blog_id FROM $wpdb->blogs") as $blog_id) {
+            switch_to_blog($blog_id);
+            sitka_carousels_install();
+            restore_current_blog();
+        }
+
+    } else {
+      // Only installing on one site
+      sitka_carousels_install();
+    }
+
+}
+
+
+// Callback function for single site install 
 function sitka_carousels_install() {
   global $wpdb;
   global $sitka_carousels_db_version;
 
+  // Name of the database table used by this plugin
   $table_name = $wpdb->prefix . 'sitka_carousels';
-  $charset_collate = $wpdb->get_charset_collate();
 
-  $sql = "CREATE TABLE `$table_name` (
-    `id` int(11) NOT NULL AUTO_INCREMENT,
-    `carousel_type` ENUM('adult_fiction','adult_nonfiction', 'adult_largeprint', 'adult_dvds', 'adult_music', 'teen_fiction', 'teen_nonfiction', 'juvenile_fiction', 'juvenile_nonfiction', 'juvenile_dvdscds') NULL,
-    `date_active` datetime NULL,
-    `date_created` datetime NULL,
-    `bibkey` int(11) NULL, 
-    `catalogue_url` varchar(2048) NULL,
-    `cover_url` varchar(2048) NULL,
-    `title` varchar(255) NULL,
-    `author` varchar (255) NULL,
-    `description` text NULL,
-    PRIMARY KEY (`id`),
-    INDEX carousel_type_index (`carousel_type`),
-    INDEX date_created_index (`date_created`),
-    INDEX date_active_index (`date_active`),
-    INDEX bibkey_index (`bibkey`));";
+  // Check to see if the table exists
+  if($wpdb->get_var("SHOW TABLES LIKE '" . $table_name ."'") != $table_name) {
 
-  require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
-  dbDelta( $sql );
+    // Table doesn't exist so create it
 
-  add_option( 'sitka_carousels_db_version', $sitka_carousels_db_version );
+    $charset_collate = $wpdb->get_charset_collate();
+
+    $sql = "CREATE TABLE `$table_name` (
+      `id` int(11) NOT NULL AUTO_INCREMENT,
+      `carousel_type` ENUM('adult_fiction','adult_nonfiction', 'adult_largeprint', 'adult_dvds', 'adult_music', 'teen_fiction', 'teen_nonfiction', 'juvenile_fiction', 'juvenile_nonfiction', 'juvenile_dvdscds') NULL,
+      `date_active` datetime NULL,
+      `date_created` datetime NULL,
+      `bibkey` int(11) NULL, 
+      `catalogue_url` varchar(2048) NULL,
+      `cover_url` varchar(2048) NULL,
+      `title` varchar(255) NULL,
+      `author` varchar (255) NULL,
+      `description` text NULL,
+      PRIMARY KEY (`id`),
+      INDEX carousel_type_index (`carousel_type`),
+      INDEX date_created_index (`date_created`),
+      INDEX date_active_index (`date_active`),
+      INDEX bibkey_index (`bibkey`));";
+
+    require_once( ABSPATH . 'wp-admin/includes/upgrade.php' );
+    dbDelta( $sql );
+
+    add_option( 'sitka_carousels_db_version', $sitka_carousels_db_version );
+  }
+}
+
+
+// Callback function for when a new blog is added to a network install
+function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, $meta) {
+
+    //replace with your base plugin path E.g. dirname/filename.php
+    if ( is_plugin_active_for_network( 'coop-sitka-carousels/coop-sitka-carousels.php' ) ) {
+        switch_to_blog($blog_id);
+        sitka_carousels_install();
+        restore_current_blog();
+    } 
+
 }
 
 
