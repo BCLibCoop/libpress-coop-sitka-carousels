@@ -6,7 +6,7 @@
  **/
 /**
  * Plugin Name: Sitka Carousels 
- * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as MUST USE.
+ * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as Network Activated.
  * Author: Ben Holt, BC Libraries Coop 
  * Author URI: http://bc.libraries.coop
  * Version: 0.1.0
@@ -18,18 +18,23 @@ include('inc/coop-sitka-carousels-constants.php');
 global $sitka_carousels_db_version;
 $sitka_carousels_db_version = '0.1.0';
 
+
 // Hook called when plugin is activated, called function checks for
 // network activation on a multisite install
 register_activation_hook( __FILE__, 'sitka_carousels_activate' );
 
+
 // Action for when a new blog is added to a network install
 add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6 );
+
 
 // Register sitka_carousel shortcode
 add_shortcode( 'sitka_carousel', 'sitka_carousels_shortcode');
 
+
 // Add slick javascript to <head> - https://kenwheeler.github.io/slick/
 wp_enqueue_script('coop-sitka-carousels-slick-js', plugins_url( 'slick/slick.min.js', __FILE__ ), array('jquery', 'jquery-migrate'), FALSE, TRUE);
+
 
 // Add CSS for slick javascript library
 wp_register_style('coop-sitka-carousels-slick-css', plugins_url( 'slick/slick.css', __FILE__ ), false );
@@ -37,22 +42,34 @@ wp_register_style('coop-sitka-carousels-slick-theme-css', plugins_url( 'slick/sl
 wp_enqueue_style('coop-sitka-carousels-slick-css' );
 wp_enqueue_style('coop-sitka-carousels-slick-theme-css' );
 
+
 // Add CSS for carousel customization
 wp_register_style('coop-sitka-carousels-css', plugins_url( 'css/coop-sitka-carousels.css', __FILE__ ), false );
 wp_enqueue_style('coop-sitka-carousels-css' );
 
+
 // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
 add_action( 'add_meta_boxes', 'coop_sitka_carousels_meta_box_add', 10, 2 );
-
-// Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc. 
-#add_submenu_page( 'sites.php', 'Sitka Libraries', 'Sitka Libraries', 'manage_network', 'sitka-libraries', array(&$sitkalistsadmin,'sitka_libraries_page'));
 
 function coop_sitka_carousels_meta_box_add() {
   add_meta_box('coop_sitka_carousels', 'Sitka Carousel Placement', 'sitka_carousels_inner_custom_box', 'highlight', 'side', 'high');
 }
 
 
-// Callback function for site activation - checks for network activation
+// Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc. 
+add_action('network_admin_menu', 'coop_sitka_carousels_network_admin_menu');
+
+function coop_sitka_carousels_network_admin_menu() {
+  add_submenu_page( 'sites.php', 'Sitka Libraries', 'Sitka Libraries', 'manage_network', 'sitka-libraries', 'coop_sitka_carousels_sitka_libraries_page');
+}
+
+// Add callback to handle the admin form submission
+add_action( 'admin_post', 'coop_sitka_carousels_save_admin_callback' );
+
+
+/*
+ * Callback function for site activation - checks for network activation
+ */
 function sitka_carousels_activate($network_wide) {
       if ( is_multisite() && $network_wide ) {
         // installing across a multisite network, loop through each blog to install
@@ -73,7 +90,9 @@ function sitka_carousels_activate($network_wide) {
 }
 
 
-// Callback function for single site install 
+/*
+ * Callback function for single site install 
+ */
 function sitka_carousels_install() {
   global $wpdb;
   global $sitka_carousels_db_version;
@@ -113,7 +132,9 @@ function sitka_carousels_install() {
 }
 
 
-// Callback function for when a new blog is added to a network install
+/*
+ * Callback function for when a new blog is added to a network install
+ */
 function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, $meta) {
 
     //replace with your base plugin path E.g. dirname/filename.php
@@ -126,7 +147,9 @@ function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, 
 }
 
 
-// Callback function for generating sitka_carousel shortag
+/*
+ * Callback function for generating sitka_carousel shortag
+ */
 function sitka_carousels_shortcode( $attr ) {
   global $wpdb;
 
@@ -239,57 +262,122 @@ function sitka_carousels_inner_custom_box($post) {
 
 
 
+/*
+ * Network Admin configuration page for setting each library's Sitka Shortcode, Sitka Locale, and Catalogue Domain.
+ */
+function coop_sitka_carousels_sitka_libraries_page() {
+
+  if (! is_super_admin() ) {
+    // User is not a network admin
+    die('Sorry, you do not have permission to access this page');
+  }
+
+  global $wpdb;
+
+  // Get the blog_id of each blog
+  $blogs = $wpdb->get_results( $wpdb->prepare( "SELECT blog_id AS blog_id,
+                                                       domain AS domain
+                                                  FROM wp_blogs
+                                                 WHERE public = %d
+                                              ORDER BY blog_id ASC", 1), ARRAY_A);
 
 
+  $out = '<div class="wrap">' . 
+         '  <div id="icon-options-general" class="icon32">' . 
+         '  <br>' .
+         '</div>' .
 
-#function sitka_libraries_page() {
-#
-#  global $wpdb;
-#
-#  // Get the blog_id of each blog
-#  $blogs = $wpdb->get_results("SELECT blog_id AS blog_id,
-#                                      domain AS domain
-#                                 FROM wp_blogs", ARRAY_A);
-#
-#//  require_once 'config-build-lists.inc';
-#
-#  $out = '<div class="wrap">' . 
-#         '  <div id="icon-options-general" class="icon32">' . 
-#         '  <br>' .
-#         '</div>' .
-#
-#         '<h2>Sitka Libraries</h2>' .
-#         '<p>&nbsp;</p>' .
-#
-#         '<table class="sitka-lists-admin-table">' .
-#         '  <tr><th>WP site id</th><th>Domain name</th><th>Sitka Shortcode</th><th>Sitka Locale</th><th>Catalogue domain</th></tr>';
-#
-#  // Loop through each blog, lookup options, and output form
-#  foreach ($blogs as $blog) {
-#
-#    switch_to_blog($blog->blog_id);
-#
-#    $lib_shortcode = get_option('_coop_sitka_lib_shortname');
-#
-#    //If no value for locg exists, set it to 1 (parent container for Sitka)
-#    $lib_locg = (!get_option('_coop_sitka_lib_locg')) ? update_option('_coop_sitka_lib_locg', '1') : get_option('_coop_sitka_lib_locg');
-#
-#    //Must be blank by default. Same shortname stem used when it agrees with Sitka catalogue subdomain. Blogs with custom domains are the only ones targetted here.
-#    $lib_cat_link = get_option('_coop_sitka_lib_cat_link');
-#
-#    // Switch back to previous blog (main network blog)
-#    restore_current_blog();
-#
-#    // Output form
-#    $out .= sprintf('<tr><td>%d</td><td>%s</td><td><input type="text" id="shortcode_%d" class="shortcode widefat" value="%s"></td>' . 
-#                    '<td><input type="text" id="locg_%d" class="shortcode widefat" value="%d"></td><td><input type="text" id="cat_link_%d" class=shortcode widefat" value="%s"></td></tr>',
-#                    $blog['blog_id'], $blog['domain'], $blog['blog_id'], $lib_shortcode, $blog['blog_id'], $lib_locg, $blog['blog_id'], $lib_cat_link);
-#
-#  }
-#
-#  $out .= '<tr><td>&nbsp;</td><td></td><td></td></tr>' .
-#          '<tr><td><button class="button button-primary sitka-libraries-save-btn">Save changes</button></td><td></td></tr>' .
-#          '</table><!-- .sitka-lists-admin-table -->' . 
-#          '</div><!-- .wrap -->';
-#
-#}
+         '<h2>Sitka Libraries</h2>' .
+         '<p>&nbsp;</p>' .
+         '<form method="post" action="' . esc_url(admin_url('admin-post.php')) .'">' .
+
+         '<table class="sitka-lists-admin-table">' .
+         '  <tr><th>WP site id</th><th>Domain name</th><th>Sitka Shortcode</th><th>Sitka Locale</th><th>Catalogue domain</th></tr>';
+
+  // Loop through each blog lookup options and output form
+  foreach ($blogs as $blog) {
+
+    switch_to_blog($blog['blog_id']);
+
+    $lib_shortcode = get_option('_coop_sitka_lib_shortname');
+
+    //If no value for locg exists, set it to 1 (parent container for Sitka)
+    $lib_locg = (!get_option('_coop_sitka_lib_locg')) ? update_option('_coop_sitka_lib_locg', '1') : get_option('_coop_sitka_lib_locg');
+
+    //Must be blank by default. Same shortname stem used when it agrees with Sitka catalogue subdomain. Blogs with custom domains are the only ones targetted here.
+    $lib_cat_link = get_option('_coop_sitka_lib_cat_link');
+
+    // Output form
+    $out .= sprintf('<tr><td>%d</td><td>%s</td><td><input type="text" name="shortcode_%d" class="shortcode widefat" value="%s"></td>' . 
+                    '<td><input type="text" name="locg_%d" class="shortcode widefat" value="%d"></td><td><input type="text" name="cat_link_%d" class=shortcode widefat" value="%s"></td></tr>',
+                    $blog['blog_id'], $blog['domain'], $blog['blog_id'], $lib_shortcode, $blog['blog_id'], $lib_locg, $blog['blog_id'], $lib_cat_link);
+
+    // Switch back to previous blog (main network blog)
+    restore_current_blog();
+
+  }
+
+  $out .= '<tr><td>&nbsp;</td><td></td><td></td></tr>' .
+          '<tr><td><button class="button button-primary sitka-libraries-save-btn">Save changes</button></td><td></td></tr>' .
+          '</table>' . 
+          wp_nonce_field("admin_post", "coop_sitka_carousels_nonce") . 
+          '</form>' .
+          '</div><!-- .wrap -->';
+
+  echo $out;
+
+}
+
+
+/*
+ * Callback to handle the network admin form submission
+ */
+function coop_sitka_carousels_save_admin_callback() {
+  // Check the nonce field, if it doesn't verify report error and stop
+  if (! isset( $_POST['coop_sitka_carousels_nonce']) || ! wp_verify_nonce( $_POST['coop_sitka_carousels_nonce'], 'admin_post')) {
+    die('Sorry, there was an error handling your form submission.');
+  }
+
+  if (! is_super_admin() ) {
+    // User is not a network admin
+    die('Sorry, you do not have permission to access this page');
+  }
+
+  global $wpdb;
+
+  // Query DB to get all of the blogs
+  $blogs = $wpdb->get_results( $wpdb->prepare( "SELECT blog_id AS blog_id
+                                                  FROM wp_blogs
+                                                 WHERE public = %d", 1), ARRAY_A);
+  foreach( $blogs AS $blog) {
+    // Loop through each blog and update
+    switch_to_blog($blog['blog_id']);
+
+    $shortname = strtoupper( sanitize_text_field($_POST['shortcode_' . $blog['blog_id']]) );
+    $locg = sanitize_text_field($_POST['locg_' . $blog['blog_id']]);
+    $cat_link = sanitize_text_field($_POST['cat_link_' . $blog['blog_id']]);
+
+    // Shortcode
+    // Note: The previous carousel plugin appears to have put NA in as a placeholder for unset shortcodes so
+    //       we test for it here
+    if ( ( isset($shortname) ) && ( $shortname != "NA" ) ) {
+      update_option('_coop_sitka_lib_shortname', $shortname );
+    }
+   
+    // Sitka Locale (locg)
+    if ( is_numeric($locg) ) {
+      update_option('_coop_sitka_lib_locg', $locg);
+    }
+
+    // Catalogue Link
+    if ( isset($cat_link) ) {
+      update_option('_coop_sitka_lib_cat_link', $cat_link);
+    }
+    
+    restore_current_blog();
+  }
+
+  // Return to the form page
+  wp_redirect(network_admin_url('sites.php?page=sitka-libraries'));
+
+}
