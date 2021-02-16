@@ -5,9 +5,9 @@
  *
  **/
 /**
- * Plugin Name: Sitka Carousels 
+ * Plugin Name: Sitka Carousels
  * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as Network Activated.
- * Author: Ben Holt, BC Libraries Coop 
+ * Author: Ben Holt, BC Libraries Coop
  * Author URI: http://bc.libraries.coop
  * Version: 0.1.0
  **/
@@ -69,6 +69,36 @@ function coop_sitka_carousels_network_admin_menu() {
   add_submenu_page( 'sites.php', 'Sitka Libraries', 'Sitka Libraries', 'manage_network', 'sitka-libraries', 'coop_sitka_carousels_sitka_libraries_page');
 }
 
+add_action('admin_menu', 'coop_sitka_carousels_controls_admin', 20);
+
+function coop_sitka_carousels_controls_admin() {
+    add_submenu_page( 'site-manager', 'Sitka Carousel Controls',
+      'Sitka Carousel Controls', 'manage_local_site', 'sitka-carousel-controls',
+      'coop_sitka_carousels_controls_form');
+}
+
+function coop_sitka_carousels_controls_form() {
+    //Display in form:
+    //Last checked option date
+    //Radio buttons: Last month, 3 months, 6 months
+    //Submit button -> AJAX show output of runner
+    $out = [];
+    $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
+
+    $out[] = "<p>Last full run: <input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}></p>";
+
+    $out[] ='<div class="sitka-carousel-controls">
+    <form>
+        <p>Set recheck period for Limited (Single) Run</p>
+        <input type="radio" id="last_one" name="recheck_period" value="1">Last month<br>
+        <input type="radio" id="last_three" name="recheck_period" value="3">3 months ago<br>
+        <input type="radio" id="last_six" name="recheck_period" value="6">6 months ago<br>';
+    $out[] = get_submit_button('Start limited run', 'primary large', 'controls-submit',
+    FALSE);
+    $out[] = '</form></div>';
+    echo implode("\n",$out);
+}
+
 // Add callback to handle the admin form submission
 add_action( 'admin_post', 'coop_sitka_carousels_save_admin_callback' );
 
@@ -97,7 +127,7 @@ function sitka_carousels_activate($network_wide) {
 
 
 /*
- * Callback function for single site install 
+ * Callback function for single site install
  */
 function sitka_carousels_install() {
   global $wpdb;
@@ -118,7 +148,7 @@ function sitka_carousels_install() {
       `carousel_type` ENUM('adult_fiction','adult_nonfiction', 'adult_largeprint', 'adult_dvds', 'adult_music', 'teen_fiction', 'teen_nonfiction', 'juvenile_fiction', 'juvenile_nonfiction', 'juvenile_dvdscds') NULL,
       `date_active` datetime NULL,
       `date_created` datetime NULL,
-      `bibkey` int(11) NULL, 
+      `bibkey` int(11) NULL,
       `catalogue_url` varchar(2048) NULL,
       `cover_url` varchar(2048) NULL,
       `title` varchar(255) NULL,
@@ -148,7 +178,7 @@ function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, 
         switch_to_blog($blog_id);
         sitka_carousels_install();
         restore_current_blog();
-    } 
+    }
 
 }
 
@@ -334,7 +364,6 @@ function coop_sitka_carousels_sitka_libraries_page() {
 
 }
 
-
 /*
  * Callback to handle the network admin form submission
  */
@@ -369,7 +398,7 @@ function coop_sitka_carousels_save_admin_callback() {
     if ( ( isset($shortname) ) && ( $shortname != "NA" ) ) {
       update_option('_coop_sitka_lib_shortname', $shortname );
     }
-   
+
     // Sitka Locale (locg)
     if ( is_numeric($locg) ) {
       update_option('_coop_sitka_lib_locg', $locg);
@@ -379,11 +408,77 @@ function coop_sitka_carousels_save_admin_callback() {
     if ( isset($cat_link) ) {
       update_option('_coop_sitka_lib_cat_link', $cat_link);
     }
-    
+
     restore_current_blog();
   }
 
   // Return to the form page
   wp_redirect(network_admin_url('sites.php?page=sitka-libraries'));
 
+}
+
+add_action( 'admin_footer', 'coop_sitka_carousels_control_js' );
+add_action( 'wp_ajax_coop_sitka_carousels_control_callback', 'coop_sitka_carousels_control_callback' );
+
+function coop_sitka_carousels_control_js() {
+  $ajax_nonce = wp_create_nonce( "coop-sitka-carousels-limit-run" );
+  $ajax_url = admin_url( 'admin-ajax.php' );
+  ?>
+  <script type="text/javascript" >
+  jQuery(document).ready(function($) {
+
+    $('#controls-submit').click(function (event) {
+
+      event.preventDefault();
+
+      let period_select = $('input:radio[name=recheck_period]:checked');
+
+      let data = {
+        action: 'coop_sitka_carousels_control_callback',
+        mode: 'single',
+        recheck_period: period_select.val(),
+        security: '<?php echo $ajax_nonce; ?>',
+      };
+
+      // Give user cue not to click again
+      $('#controls-submit').addClass('disabled').text('Running...');
+      // Invalidate the nonce
+      // $button.data('nonce', 'invalid');
+
+      $.post('<?php echo $ajax_url; ?>', data, function(response) {
+          if ( response.success == true ) {
+              console.log('Got this from the server: ' + response);
+              $('#controls-submit').removeClass('disabled');
+          }
+      });
+    });
+  });
+  </script> <?php
+}
+
+//Action callback for single or groups runs called by AJAX
+function coop_sitka_carousels_control_callback() {
+  $data = $_POST;
+
+  if ( check_ajax_referer('coop-sitka-carousels-limit-run', 'security', FALSE)
+    == FALSE ) {
+    wp_send_json_error();
+  }
+
+  $mode = sanitize_text_field($data['mode']);
+  //$libraries = [];
+
+  //expects array of blogs - mode is always single when triggered by this button
+  //if ($mode == 'single')
+  $libraries = array(get_blog_details());
+
+  //@todo hook in last_override
+
+  require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
+  $CarouselRunner = new \SitkaCarouselRunner($mode, $libraries);
+  //how to get the runner output here to send as response.
+
+  wp_send_json_success( __( 'Triggering single run', 'coop-sitka-carousels'
+  ) );
+  wp_die();
 }
