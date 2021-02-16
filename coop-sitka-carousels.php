@@ -73,7 +73,7 @@ add_action('admin_menu', 'coop_sitka_carousels_controls_admin', 20);
 
 function coop_sitka_carousels_controls_admin() {
     add_submenu_page( 'site-manager', 'Sitka Carousel Controls',
-      'Sitka Carousel Controls', 'manage_local_site', 'sitka-carousel-controls',
+      'Sitka Carousel Controls', 'manage_options', 'sitka-carousel-controls',
       'coop_sitka_carousels_controls_form');
 }
 
