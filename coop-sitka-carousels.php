@@ -31,27 +31,21 @@ add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6 );
 // Register sitka_carousel shortcode
 add_shortcode( 'sitka_carousel', 'sitka_carousels_shortcode');
 
+// Enqueue scripts and styles
+add_action('wp_enqueue_scripts', 'coop_sitka_carousels_enqueue_dependencies');
 
-add_action('wp_enqueue_scripts', 'coop_sitka_carousels_enqueue_scripts');
-add_action('wp_enqueue_styles', 'coop_sitka_carousels_enqueue_styles');
-
-function coop_sitka_carousels_enqueue_scripts() {
+function coop_sitka_carousels_enqueue_dependencies() {
 	// Add slick javascript to <head> - https://kenwheeler.github.io/slick/
 	wp_enqueue_script('coop-sitka-carousels-slick-js', plugins_url( 'slick/slick.min.js', __FILE__ ), array('jquery', 'jquery-migrate'), FALSE, TRUE);
-}
+  // Add CSS for slick javascript library
+  wp_register_style('coop-sitka-carousels-slick-css', plugins_url( 'slick/slick.css', __FILE__ ), false );
+  wp_register_style('coop-sitka-carousels-slick-theme-css', plugins_url( 'slick/slick-theme.css', __FILE__ ), false );
+  wp_enqueue_style('coop-sitka-carousels-slick-css' );
+  wp_enqueue_style('coop-sitka-carousels-slick-theme-css' );
 
-function coop_sitka_carousels_enqueue_styles() {
-
-	// Add CSS for slick javascript library
-	wp_register_style('coop-sitka-carousels-slick-css', plugins_url( 'slick/slick.css', __FILE__ ), false );
-	wp_register_style('coop-sitka-carousels-slick-theme-css', plugins_url( 'slick/slick-theme.css', __FILE__ ), false );
-	wp_enqueue_style('coop-sitka-carousels-slick-css' );
-	wp_enqueue_style('coop-sitka-carousels-slick-theme-css' );
-
-
-	// Add CSS for carousel customization
-	wp_register_style('coop-sitka-carousels-css', plugins_url( 'css/coop-sitka-carousels.css', __FILE__ ), false );
-	wp_enqueue_style('coop-sitka-carousels-css' );
+  // Add CSS for carousel customization
+  wp_register_style('coop-sitka-carousels-css', plugins_url( 'css/coop-sitka-carousels.css', __FILE__ ), false );
+  wp_enqueue_style('coop-sitka-carousels-css' );
 }
 
 // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
