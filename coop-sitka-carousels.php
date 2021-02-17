@@ -84,19 +84,31 @@ function coop_sitka_carousels_controls_form() {
     //Submit button -> AJAX show output of runner
     $out = [];
     $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
+    $site_name = get_option('blogname');
+    $shortname = get_option('_coop_sitka_lib_shortname');
 
-    $out[] = "<p>Last full run: <input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}></p>";
+    //Only show controls when a shortname is set and non-default.
+    if ( $shortname && $shortname != 'NA' ) {
+        $out[] = "<h3>Sitka Carousel Controls - {$site_name}</h3>";
+        $out[] = "<p>Last full run: <input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}></p>";
+        $out[] = '<div class="sitka-carousel-controls">
+        <form>
+            <h4>Set re-check period:</h4>
+                <div class="sitka-carousel-radios">
+                <input type="radio" id="last_one" name="recheck_period" value="1">Last month<br>
+                <input type="radio" id="last_two" name="recheck_period" value="2">2 months ago<br>
+                <input type="radio" id="last_four" name="recheck_period" value="4">4 months ago<br>
+                </div><br />';
 
-    $out[] ='<div class="sitka-carousel-controls">
-    <form>
-        <p>Set recheck period for Limited (Single) Run</p>
-        <input type="radio" id="last_one" name="recheck_period" value="1">Last month<br>
-        <input type="radio" id="last_three" name="recheck_period" value="3">3 months ago<br>
-        <input type="radio" id="last_six" name="recheck_period" value="6">6 months ago<br>';
-    $out[] = get_submit_button('Start limited run', 'primary large', 'controls-submit',
-    FALSE);
-    $out[] = '</form></div>';
-    echo implode("\n",$out);
+        $out[] = get_submit_button('Select a period.', 'primary large', 'controls-submit',
+        FALSE);
+        $out[] = '</p></form><p id="run-messages"></p></div>';
+        echo implode("\n", $out);
+    } else {
+        echo sprintf('<h3>No Sitka Carousels shortname set for this site.</h3>
+        <p>Set a shortname <a href="%swp-admin/network/sites.php?page=sitka-libraries">here</a> to allow carousel runs.</p>',
+          network_site_url());
+    }
 }
 
 // Add callback to handle the admin form submission
@@ -426,29 +438,45 @@ function coop_sitka_carousels_control_js() {
   ?>
   <script type="text/javascript" >
   jQuery(document).ready(function($) {
+    $('#controls-submit').addClass('disabled');
+    //default
+      let $period_options = $('input:radio[name=recheck_period]');
+      let $period_checked = $('input:radio[name=recheck_period]:checked');
 
-    $('#controls-submit').click(function (event) {
+      $period_options.click(function(event) {
+          $period_checked = $($period_checked.selector);
+        if ($period_checked.val() !== undefined) { //just in case
+            $('#controls-submit').removeClass('disabled').val('Ready to run.');
+        }
+    });
 
+    $('#controls-submit').click( function (event) {
       event.preventDefault();
-
-      let period_select = $('input:radio[name=recheck_period]:checked');
+      $period_checked = $($period_checked.selector);
 
       let data = {
         action: 'coop_sitka_carousels_control_callback',
         mode: 'single',
-        recheck_period: period_select.val(),
+        recheck_period: $period_checked.val(),
         security: '<?php echo $ajax_nonce; ?>',
       };
 
       // Give user cue not to click again
-      $('#controls-submit').addClass('disabled').text('Running...');
-      // Invalidate the nonce
-      // $button.data('nonce', 'invalid');
+      $('#controls-submit').addClass('disabled').val('Working...');
+      // Provide status message
+      $('#run-messages').append('This can take about 2 minutes for ' +
+            'the average library. Please wait...');
 
       $.post('<?php echo $ajax_url; ?>', data, function(response) {
           if ( response.success == true ) {
-              console.log('Got this from the server: ' + response);
-              $('#controls-submit').removeClass('disabled');
+              console.log('Run returned with success response.');
+              $('#run-messages').text('');
+              $('#run-messages').text(JSON.stringify
+              (response['data']['listCount'],
+                  null,
+                  '\t'));
+              $('#controls-submit')
+                  .removeClass('disabled').val('Ready to run.');
           }
       });
     });
@@ -466,19 +494,17 @@ function coop_sitka_carousels_control_callback() {
   }
 
   $mode = sanitize_text_field($data['mode']);
-  //$libraries = [];
 
-  //expects array of blogs - mode is always single when triggered by this button
-  //if ($mode == 'single')
+  // expects array of blogs
+  // mode is always single when triggered by this button
   $libraries = array(get_blog_details());
-
-  //@todo hook in last_override
 
   require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
   $CarouselRunner = new \SitkaCarouselRunner($mode, $libraries);
-  //how to get the runner output here to send as response.
+  $listCount = $CarouselRunner->getListCounts();
 
-  wp_send_json_success( __( 'Triggering single run', 'coop-sitka-carousels'
-  ) );
+  wp_send_json_success(array(
+      'listCount' => $listCount,
+    ), 200);
   wp_die();
 }

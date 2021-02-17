@@ -23,20 +23,25 @@
 
 if (! class_exists('SitkaCarouselRunner') ):
 
+
   class SitkaCarouselRunner {
 
     /**
-     * $mode string
-    **/
+     * @property array newInListCount
+     */
+    private $newInListCount;
 
     public function __construct( $mode = 'all', $target_libraries = array() ) {
 
       global $wpdb;
 
+      //Initialize with the lists
+      $this->newInListCount = array_fill_keys(CAROUSEL_TYPE, 0);
+
       require_once( WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-constants.php');
 
-      print("Constructing...");
       if ($mode == 'all') {
+        print("Starting check for new items (network-wide)...");
 
         // Yesterday's date - We use yesterday's date so that in the off-chance a new
         // item gets added during the update process it will be captured in the next update
@@ -225,26 +230,26 @@ if (! class_exists('SitkaCarouselRunner') ):
                              array('bibkey' => $item['bibkey']),
                              array('%s', '%s', '%s', '%s', '%s', '%s'),
                              array('%d'));
-
-
-            } // if isset($item_copy_data[10] (date_active)
+              //Increment the list counter for fleshed-out items
+              $this->newInListCount[$carousel_type] += 1;
+              // if isset($item_copy_data[10] (date_active)
+            } else {
+              //Remove from table or keep in case item starts circulating?
+            }
 
           } // for each $inactive_item (bibkey without a date_active)
 
         } // foreach carousel_type
-
         // Set this library's _coop_sitka_carousels_date_last_checked to yesterday's date
         // This is done in the off chance a new item has been added while we have been updating the carousel
         update_option('_coop_sitka_carousels_date_last_checked', date('Y-m-d', mktime(0,0,0, date('m'), date('d')-1, date('Y'))));
 
-        //@todo add count or other output to response before moving on.
-
         // Set current blog back to the previous one, which is our main network blog
         restore_current_blog();
       }
-
-      // Done!
-      print("New items have been updated.\n");
+    }
+    public function getListCounts(){
+     return $this->newInListCount;
     }
   }
 endif;
