@@ -77,6 +77,7 @@ function coop_sitka_carousels_controls_form() {
     //Radio buttons: Last month, 3 months, 6 months
     //Submit button -> AJAX show output of runner
     $out = [];
+    $run_message = '';
     $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
     $site_name = get_option('blogname');
     $shortname = get_option('_coop_sitka_lib_shortname');
@@ -95,8 +96,11 @@ function coop_sitka_carousels_controls_form() {
                 </div><br />';
 
         $out[] = get_submit_button('Select a period.', 'primary large', 'controls-submit',
-        FALSE);
-        $out[] = '</p></form><p id="run-messages"></p></div>';
+        FALSE) . '</form>';
+        if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list'))
+            $run_message = "The following new items were retrieved last run:
+<br /><pre>". json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
+        $out[] = "<p id='run-messages'>{$run_message}</p></div>";
         echo implode("\n", $out);
     } else {
         echo sprintf('<h3>No Sitka Carousels shortname set for this site.</h3>
@@ -432,6 +436,9 @@ function coop_sitka_carousels_control_js() {
   ?>
   <script type="text/javascript" >
   jQuery(document).ready(function($) {
+
+      //@todo issue request for the relevant transient if it was set.
+
     $('#controls-submit').addClass('disabled');
     //default
       let $period_options = $('input:radio[name=recheck_period]');
@@ -461,16 +468,12 @@ function coop_sitka_carousels_control_js() {
       $('#run-messages').append('This can take about 2 minutes for ' +
             'the average library. Please wait...');
 
+      // $('#controls-submit').removeClass('disabled').val('Ready to run.');
+
       $.post('<?php echo $ajax_url; ?>', data, function(response) {
           if ( response.success == true ) {
-              console.log('Run returned with success response.');
-              $('#run-messages').text('');
-              $('#run-messages').text(JSON.stringify
-              (response['data']['listCount'],
-                  null,
-                  '\t'));
-              $('#controls-submit')
-                  .removeClass('disabled').val('Ready to run.');
+              console.log('Run has been initiated with WP-CLI. Check this ' +
+                  'page again in about 5 minutes for results.');
           }
       });
     });
@@ -488,17 +491,63 @@ function coop_sitka_carousels_control_callback() {
   }
 
   $mode = sanitize_text_field($data['mode']);
+  $recheck_period = (int) sanitize_text_field($data['recheck_period']);
 
-  // expects array of blogs
+  // expects array of IDs
   // mode is always single when triggered by this button
-  $libraries = array(get_blog_details());
+  $blog = get_current_blog_id();
 
-  require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
-  $CarouselRunner = new \SitkaCarouselRunner($mode, $libraries);
-  $listCount = $CarouselRunner->getListCounts();
+  //Prepare command
+  $ini_path = '/app/overrides/php.ini'; //localized for lando.
+  $ini_path = '/etc/php/7.0/php.ini'; //generalized for ubuntu-server.
+  $executable = "/usr/local/bin/php -c $ini_path -d error_reporting='E_ALL & ~E_NOTICE' /usr/local/bin/wp ";
+  $command = sprintf(" --path=%s sitka-carousel-runner --mode=%s --target=%s --recheck=%d",
+    ABSPATH, $mode, $blog, $recheck_period
+  );
+  $output = [];
+  $suffix = ' 2>&1 &'; //redirect stderr and run in background
+  exec($executable . $command . $suffix, $output);
 
-  wp_send_json_success(array(
-      'listCount' => $listCount,
-    ), 200);
+  //Complete the request with OK
+  wp_send_json_success(array(), 200);
   wp_die();
+}
+
+//Custom CLI commands
+add_action( 'cli_init', 'coop_sitka_carousels_register_cli_cmd' );
+function coop_sitka_carousels_register_cli_cmd() {
+  WP_CLI::add_command( 'sitka-carousel-runner', 'coop_sitka_carousels_limited_run' );
+}
+
+function coop_sitka_carousels_limited_run( $args = array(), $assoc_args =
+array
+('mode' => 'single',
+  'target' => array() ) ) {
+
+  // Get arguments.
+  $parsed_args = wp_parse_args(
+    $args,
+    $assoc_args
+  );
+
+  if (!empty($parsed_args['target'])) {
+    //WP_CLI::debug("Checking for new items for blog ID
+    // {$parsed_args['target'][0]}...");
+    //@todo reset
+    WP_CLI::debug("ARGS " . print_r($parsed_args, true));
+
+    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
+    $CarouselRunner = new \SitkaCarouselRunner(
+        $parsed_args['mode'],
+        array( (int) $parsed_args['target'] )
+    );
+    //@todo It can run without populating transient, so remove this. Wrap
+    // above in try/catch?
+
+    if( $newItems = $CarouselRunner::getNewListItems()) {
+      WP_CLI::success("The following new items were retrieved: <pre>". json_encode($newItems, JSON_PRETTY_PRINT) . "</pre>");
+    } else {
+      WP_CLI::error( "Failed to populate any new items.");
+    }
+  }
 }

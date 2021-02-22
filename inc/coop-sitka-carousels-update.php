@@ -27,16 +27,24 @@ if (! class_exists('SitkaCarouselRunner') ):
   class SitkaCarouselRunner {
 
     /**
-     * @property array newInListCount
+     * @property array getNewListItems
      */
-    private $newInListCount;
+    private $newListItems;
 
-    public function __construct( $mode = 'all', $target_libraries = array() ) {
+    /**
+     * SitkaCarouselRunner constructor.
+     * @param string $mode
+     * @param array $targets
+     * @param int $period
+     */
+    public function __construct( $mode = 'all', $targets = array(), $period = 1
+    ) {
 
       global $wpdb;
 
       //Initialize with the lists
-      $this->newInListCount = array_fill_keys(CAROUSEL_TYPE, 0);
+      $this->newListItems = array_fill_keys(CAROUSEL_TYPE, array());
+      $libraries = [];
 
       require_once( WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-constants.php');
 
@@ -53,15 +61,16 @@ if (! class_exists('SitkaCarouselRunner') ):
                                                            FROM " . $wpdb->prefix . "blogs
                                                           WHERE public = %d
                                                        ORDER BY blog_id ASC", 1), ARRAY_A);
-      } else {
-          //Single or small group triggered by ajax
-          //keep default libraries.
-          $libraries = $target_libraries;
-
+      } else { //Single or small group triggered by ajax
+          //Load the IDs as full WP_Site objects
+          foreach($targets as $target) {
+            $libraries[] = get_blog_details($target);
+            var_dump($libraries);
+          }
       }
       // Loop through each library updating its carousel data
       foreach($libraries as $library) {
-        //cast as array for augmentation and compatibility
+        //cast as array JIC for compatibility
         $library = (array) $library;
 
         // Switch to the current library's WP instance
@@ -102,8 +111,7 @@ if (! class_exists('SitkaCarouselRunner') ):
 
         //Override for this run
         if ($mode == 'single')
-          $recheck_period = $_POST['recheck_period'] ?
-            "P" . sanitize_text_field($_POST['recheck_period']) . "M" : "P0M";
+          $recheck_period = "P" . $period . "M";
 
           try {
             $date = date_create($option_last_checked);
@@ -230,8 +238,13 @@ if (! class_exists('SitkaCarouselRunner') ):
                              array('bibkey' => $item['bibkey']),
                              array('%s', '%s', '%s', '%s', '%s', '%s'),
                              array('%d'));
-              //Increment the list counter for fleshed-out items
-              $this->newInListCount[$carousel_type] += 1;
+
+              //Save relevant metadata for user list
+              $this->newListItems[$carousel_type][] = array(
+                'bibkey' => $item['bibkey'],
+                'date_active' => $item['date_active'],
+                'catalogue_url' => $item['catalogue_url'],
+              );
               // if isset($item_copy_data[10] (date_active)
             } else {
               //Remove from table or keep in case item starts circulating?
@@ -244,12 +257,15 @@ if (! class_exists('SitkaCarouselRunner') ):
         // This is done in the off chance a new item has been added while we have been updating the carousel
         update_option('_coop_sitka_carousels_date_last_checked', date('Y-m-d', mktime(0,0,0, date('m'), date('d')-1, date('Y'))));
 
+        //Set a transient for hour to update the admin page with results
+        set_transient('_coop_sitka_carousels_new_items_by_list',
+          $this->newListItems, 3600);
         // Set current blog back to the previous one, which is our main network blog
         restore_current_blog();
       }
     }
-    public function getListCounts(){
-     return $this->newInListCount;
+    public static function getNewListItems(){
+     return get_transient('_coop_sitka_carousels_new_items_by_list');
     }
   }
 endif;
