@@ -1,5 +1,5 @@
 {
-    "name": "bclibcoop/coop-sitka-carousel",
+    "name": "bclibcoop/coop-sitka-carousels",
     "description": "New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels",
     "type": "wordpress-plugin",
     "license": "GPL-2.0-or-later",
