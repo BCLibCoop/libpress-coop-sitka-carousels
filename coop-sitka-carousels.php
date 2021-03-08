@@ -9,7 +9,7 @@
  * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as Network Activated.
  * Author: Ben Holt, BC Libraries Coop
  * Author URI: http://bc.libraries.coop
- * Version: 0.1.0
+ * Version: 0.1.1
  **/
 
 // Include constants definitions
@@ -56,7 +56,7 @@ function coop_sitka_carousels_meta_box_add() {
 }
 
 
-// Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc. 
+// Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc.
 add_action('network_admin_menu', 'coop_sitka_carousels_network_admin_menu');
 
 function coop_sitka_carousels_network_admin_menu() {
@@ -205,18 +205,18 @@ function sitka_carousels_shortcode( $attr ) {
   $carousel_class[] = 'sitka-carousel-' . count($carousel_class);
 
   // Set carousel type
-  in_array($attr['type'], CAROUSEL_TYPE  ) ? $type = $attr['type'] : $type = CAROUSEL_TYPE[0];
+  (!empty($attr['type']) && in_array($attr['type'], CAROUSEL_TYPE)) ? $type = $attr['type'] : $type = CAROUSEL_TYPE[0];
 
   // Set transition type
-  in_array($attr['transition'], CAROUSEL_TRANSITION) ? $transition = $attr['transition'] : $transition = CAROUSEL_TRANSITION[0];
+  (!empty($attr['transition']) && in_array($attr['transition'], CAROUSEL_TRANSITION)) ? $transition = $attr['transition'] : $transition = CAROUSEL_TRANSITION[0];
 
-  // Get the number of new items in the last month, will be used to decide whether to show items from last month or 
+  // Get the number of new items in the last month, will be used to decide whether to show items from last month or
   // up to CAROUSEL_MIN items, which would include items older than 1 month
   if ($wpdb->get_var($wpdb->prepare("SELECT COUNT(*)
                                        FROM " . $wpdb->prefix . "sitka_carousels
                                       WHERE carousel_type = %s
                                         AND date_active > (NOW() - INTERVAL 1 MONTH)", $type)) >= CAROUSEL_MIN ) {
-  
+
     // Use items added within last month
     $sql = $wpdb->prepare("SELECT bibkey AS bibkey,
                                   catalogue_url AS catalogue_url,
@@ -252,11 +252,11 @@ function sitka_carousels_shortcode( $attr ) {
   foreach ( $results as $row ) {
 
     // Build the HTML to return for the short tag
-    $tag_html .= "<div class='sikta-item'>" . 
+    $tag_html .= "<div class='sikta-item'>" .
                    "<a href='" . $row['catalogue_url'] . "'>" .
                      "<img src='" . $row['cover_url'] . "' class='sitka-carousel-image'>" .
                      "<img src='" . plugins_url( 'img/nocover.jpg', __FILE__ ) ."' class='sitka-carousel-image sitka-carousel-image-default'>" .
-                     "<div class='sitka-info'>" . 
+                     "<div class='sitka-info'>" .
                        "<span class='sitka-title'>" . $row['title'] . "</span><br />" .
                        "<span class='sitka-author'>" . $row['author'] . "</span>" .
                      "</div>" .
@@ -278,7 +278,7 @@ function sitka_carousels_shortcode( $attr ) {
         infinite: true,
         pauseOnHover: true,
         accessibility: true,
-        fade: "; 
+        fade: ";
   $transition == 'fade' ? $tag_html .= "true" : $tag_html .= "false";
   $tag_html .=  "});
      })
@@ -295,7 +295,7 @@ function sitka_carousels_shortcode( $attr ) {
  */
 function sitka_carousels_inner_custom_box($post) {
 
-  $out = '<p>Sitka Carousels can be added to this Highlight by inserting one or more shortcodes into the Highlight text. ' . 
+  $out = '<p>Sitka Carousels can be added to this Highlight by inserting one or more shortcodes into the Highlight text. ' .
          'Shortcodes take the following format:<br /> <strong>[sitka_carousel type="adult_fiction" transition="fade"]</strong></p>' .
          '<p>Possible values for type: adult_fiction, adult_nonfiction, adult_largeprint, adult_dvds, adult_music, ' .
          'teen_fiction, teen_nonfiction, juvenile_fiction, juvenile_nonfiction, or juvenile_dvdscds. Defaults ' .
@@ -328,8 +328,8 @@ function coop_sitka_carousels_sitka_libraries_page() {
                                               ORDER BY blog_id ASC", 1), ARRAY_A);
 
 
-  $out = '<div class="wrap">' . 
-         '  <div id="icon-options-general" class="icon32">' . 
+  $out = '<div class="wrap">' .
+         '  <div id="icon-options-general" class="icon32">' .
          '  <br>' .
          '</div>' .
 
@@ -354,7 +354,7 @@ function coop_sitka_carousels_sitka_libraries_page() {
     $lib_cat_link = get_option('_coop_sitka_lib_cat_link');
 
     // Output form
-    $out .= sprintf('<tr><td>%d</td><td>%s</td><td><input type="text" name="shortcode_%d" class="shortcode widefat" value="%s"></td>' . 
+    $out .= sprintf('<tr><td>%d</td><td>%s</td><td><input type="text" name="shortcode_%d" class="shortcode widefat" value="%s"></td>' .
                     '<td><input type="text" name="locg_%d" class="shortcode widefat" value="%d"></td><td><input type="text" name="cat_link_%d" class=shortcode widefat" value="%s"></td></tr>',
                     $blog['blog_id'], $blog['domain'], $blog['blog_id'], $lib_shortcode, $blog['blog_id'], $lib_locg, $blog['blog_id'], $lib_cat_link);
 
@@ -365,8 +365,8 @@ function coop_sitka_carousels_sitka_libraries_page() {
 
   $out .= '<tr><td>&nbsp;</td><td></td><td></td></tr>' .
           '<tr><td><button class="button button-primary sitka-libraries-save-btn">Save changes</button></td><td></td></tr>' .
-          '</table>' . 
-          wp_nonce_field("admin_post", "coop_sitka_carousels_nonce") . 
+          '</table>' .
+          wp_nonce_field("admin_post", "coop_sitka_carousels_nonce") .
           '</form>' .
           '</div><!-- .wrap -->';
 

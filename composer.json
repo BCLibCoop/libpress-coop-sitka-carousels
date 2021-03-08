@@ -1,0 +1,29 @@
+{
+    "name": "bclibcoop/coop-sitka-carousels",
+    "description": "New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels",
+    "type": "wordpress-plugin",
+    "license": "GPL-2.0-or-later",
+    "keywords": [
+        "wordpress",
+        "wordpress-plugin"
+    ],
+    "homepage": "https://bc.libraries.coop/",
+    "authors": [
+        {
+            "name": "Ben Holt",
+            "email": "ben.holt@bc.libraries.coop"
+        },
+        {
+          "name": "Jonathan Schatz",
+          "email": "jonathan.schatz@bc.libraries.coop"
+      },
+        {
+            "name": "Sam Edwards",
+            "email": "sam.edwards@bc.libraries.coop"
+        }
+    ],
+    "require": {
+        "php": ">=7.0",
+        "composer/installers": "^1.0"
+    }
+}
