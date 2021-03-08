@@ -465,15 +465,15 @@ function coop_sitka_carousels_control_js() {
       // Give user cue not to click again
       $('#controls-submit').addClass('disabled').val('Working...');
       // Provide status message
-      $('#run-messages').append('This can take about 2 minutes for ' +
+      $('#run-messages').append('This can take a few minutes for ' +
             'the average library. Please wait...');
 
       // $('#controls-submit').removeClass('disabled').val('Ready to run.');
 
       $.post('<?php echo $ajax_url; ?>', data, function(response) {
           if ( response.success == true ) {
-              console.log('Run has been initiated with WP-CLI. Check this ' +
-                  'page again in about 5 minutes for results.');
+              console.log('Carousel run has been initiated. Check this ' +
+                  'page again in a few minutes for results.');
           }
       });
     });
@@ -493,33 +493,27 @@ function coop_sitka_carousels_control_callback() {
   $mode = sanitize_text_field($data['mode']);
   $recheck_period = (int) sanitize_text_field($data['recheck_period']);
 
-  // expects array of IDs
   // mode is always single when triggered by this button
   $blog = get_current_blog_id();
 
-  //Prepare command
-  $ini_path = '/app/overrides/php.ini'; //localized for lando.
-  $ini_path = '/etc/php/7.0/php.ini'; //generalized for ubuntu-server.
-  $executable = "/usr/local/bin/php -c $ini_path -d error_reporting='E_ALL & ~E_NOTICE' /usr/local/bin/wp ";
-  $command = sprintf(" --path=%s sitka-carousel-runner --mode=%s --target=%s --recheck=%d",
-    ABSPATH, $mode, $blog, $recheck_period
-  );
-  $output = [];
-  $suffix = ' 2>&1 &'; //redirect stderr and run in background
-  exec($executable . $command . $suffix, $output);
-
-  //Complete the request with OK
-  wp_send_json_success(array(), 200);
+  //Call the runner wrapper
+  coop_sitka_carousels_limited_run($mode, [$blog]);
+  wp_send_json_success(NULL, 200);
   wp_die();
 }
 
 //Custom CLI commands
 add_action( 'cli_init', 'coop_sitka_carousels_register_cli_cmd' );
 function coop_sitka_carousels_register_cli_cmd() {
-  WP_CLI::add_command( 'sitka-carousel-runner', 'coop_sitka_carousels_limited_run' );
+  WP_CLI::add_command( 'sitka-carousel-runner', 'coop_sitka_carousels_limited_run_cmd' );
 }
 
-function coop_sitka_carousels_limited_run( $args = array(), $assoc_args =
+/**
+ * WP-CLI Command wrapper for coop_sitka_carousels_limited_run
+ * @param array $args
+ * @param array $assoc_args
+ */
+function coop_sitka_carousels_limited_run_cmd( $args = array(), $assoc_args =
 array
 ('mode' => 'single',
   'target' => array() ) ) {
@@ -533,21 +527,34 @@ array
   if (!empty($parsed_args['target'])) {
     //WP_CLI::debug("Checking for new items for blog ID
     // {$parsed_args['target'][0]}...");
-    //@todo reset
-    WP_CLI::debug("ARGS " . print_r($parsed_args, true));
+    WP_CLI::debug("ARGS " . print_r($parsed_args, TRUE));
 
-    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
-    $CarouselRunner = new \SitkaCarouselRunner(
+//    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
+    try {
+      $CarouselRunner = coop_sitka_carousels_limited_run(
         $parsed_args['mode'],
-        array( (int) $parsed_args['target'] )
-    );
-    //@todo It can run without populating transient, so remove this. Wrap
-    // above in try/catch?
+        array((int) $parsed_args['target'])
+      );
 
-    if( $newItems = $CarouselRunner::getNewListItems()) {
-      WP_CLI::success("The following new items were retrieved: <pre>". json_encode($newItems, JSON_PRETTY_PRINT) . "</pre>");
-    } else {
-      WP_CLI::error( "Failed to populate any new items.");
+      if ($newItems = $CarouselRunner::getNewListItems()) {
+        WP_CLI::success("The following new items were retrieved: <pre>" . json_encode($newItems, JSON_PRETTY_PRINT) . "</pre>");
+      }
+      else {
+        WP_CLI::error("Failed to populate any new items.");
+      }
+    } catch (\Exception $error) {
+      WP_CLI::error("Failed to create CarouselRunner: {$error->getMessage()}.");
     }
   }
+}
+
+/**
+ * Wrapper for constructing a CarouselRunner
+ * @param string $mode
+ * @param array $targets
+ * @return \SitkaCarouselRunner
+ */
+function coop_sitka_carousels_limited_run ($mode= '', $targets = []) {
+    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
+    return new \SitkaCarouselRunner($mode, $targets);
 }

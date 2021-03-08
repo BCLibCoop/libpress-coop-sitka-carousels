@@ -65,7 +65,7 @@ if (! class_exists('SitkaCarouselRunner') ):
           //Load the IDs as full WP_Site objects
           foreach($targets as $target) {
             $libraries[] = get_blog_details($target);
-            var_dump($libraries);
+            //var_dump($libraries);
           }
       }
       // Loop through each library updating its carousel data
