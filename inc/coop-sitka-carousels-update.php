@@ -242,6 +242,7 @@ if (! class_exists('SitkaCarouselRunner') ):
               //Save relevant metadata for user list
               $this->newListItems[$carousel_type][] = array(
                 'bibkey' => $item['bibkey'],
+                'title' => $item['title'],
                 'date_active' => $item['date_active'],
                 'catalogue_url' => $item['catalogue_url'],
               );
@@ -257,9 +258,9 @@ if (! class_exists('SitkaCarouselRunner') ):
         // This is done in the off chance a new item has been added while we have been updating the carousel
         update_option('_coop_sitka_carousels_date_last_checked', date('Y-m-d', mktime(0,0,0, date('m'), date('d')-1, date('Y'))));
 
-        //Set a transient for hour to update the admin page with results
+        //Set a transient for half-hour to update the admin page with results
         set_transient('_coop_sitka_carousels_new_items_by_list',
-          $this->newListItems, 3600);
+          $this->newListItems, 1800);
         // Set current blog back to the previous one, which is our main network blog
         restore_current_blog();
       }
