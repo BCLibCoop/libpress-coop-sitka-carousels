@@ -429,6 +429,9 @@ function coop_sitka_carousels_save_admin_callback() {
 
 add_action( 'admin_footer', 'coop_sitka_carousels_control_js' );
 add_action( 'wp_ajax_coop_sitka_carousels_control_callback', 'coop_sitka_carousels_control_callback' );
+add_action( 'coop_sitka_carousels_trigger',
+  'coop_sitka_carousels_limited_run', 10, 3
+);
 
 function coop_sitka_carousels_control_js() {
   $ajax_nonce = wp_create_nonce( "coop-sitka-carousels-limit-run" );
@@ -436,9 +439,8 @@ function coop_sitka_carousels_control_js() {
   ?>
   <script type="text/javascript" >
   jQuery(document).ready(function($) {
-
-      //@todo issue request for the relevant transient if it was set.
-
+    //reset
+    $('#run-messages').html('');
     $('#controls-submit').addClass('disabled');
     //default
       let $period_options = $('input:radio[name=recheck_period]');
@@ -465,15 +467,15 @@ function coop_sitka_carousels_control_js() {
       // Give user cue not to click again
       $('#controls-submit').addClass('disabled').val('Working...');
       // Provide status message
-      $('#run-messages').append('This can take a few minutes for ' +
+      $('#run-messages').html('This can take a few minutes for ' +
             'the average library. Please wait...');
 
       // $('#controls-submit').removeClass('disabled').val('Ready to run.');
 
       $.post('<?php echo $ajax_url; ?>', data, function(response) {
           if ( response.success == true ) {
-              console.log('Carousel run has been initiated. Check this ' +
-                  'page again in a few minutes for results.');
+              console.log('Carousel run has been scheduled in a few ' +
+                  'minutes. Check again for next cron run for results.');
           }
       });
     });
@@ -496,8 +498,14 @@ function coop_sitka_carousels_control_callback() {
   // mode is always single when triggered by this button
   $blog = get_current_blog_id();
 
-  //Call the runner wrapper
-  coop_sitka_carousels_limited_run($mode, [$blog]);
+  //Schedule the run wrapper in cron
+  //coop_sitka_carousels_limited_run($mode, [$blog]);
+
+  wp_schedule_single_event( time() + 60,
+    'coop_sitka_carousels_trigger',
+    array($mode, [$blog]),
+    FALSE
+  );
   wp_send_json_success(NULL, 200);
   wp_die();
 }
