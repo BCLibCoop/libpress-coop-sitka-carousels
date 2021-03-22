@@ -55,6 +55,8 @@ if (! class_exists('SitkaCarouselRunner') ):
         // item gets added during the update process it will be captured in the next update
         $date_checked = date('Y-m-d', mktime(0,0,0, date('m'), date('d')-1, date('Y')));
 
+        switch_to_blog(1); //run at network level (Shared Media)
+
         // Get all of the active libraries
         $libraries = $wpdb->get_results( $wpdb->prepare("SELECT blog_id AS blog_id,
                                                                 domain AS domain
@@ -112,18 +114,16 @@ if (! class_exists('SitkaCarouselRunner') ):
         // Get the date of the last carousel update, if no update use 4 months ago
         $option_last_checked = get_option('_coop_sitka_carousels_date_last_checked', date('Y-m-d', mktime(0,0,0, date('m')-4, date('d'), date('Y'))));
 
-        //Override period for this run if not sweeping
         //Default: last month ($period == 1)
-        if ($sweep === FALSE)
-          $recheck_period = "P" . $period . "M";
+        $recheck_period = "P" . $period . "M";
 
-          try {
-            $date = date_create($option_last_checked);
-            $date->sub(new DateInterval($recheck_period));
-            $date_checked = $date->format('Y-m-d');
-          } catch (Exception $e) {
-            error_log("Something went wrong with date rechecking: " . $e->getMessage());
-          }
+        try {
+          $date = date_create($option_last_checked);
+          $date->sub(new DateInterval($recheck_period));
+          $date_checked = $date->format('Y-m-d');
+        } catch (Exception $e) {
+          error_log("Something went wrong with date rechecking: " . $e->getMessage());
+        }
 
         // Query Evergreen for new items for each carousel type and add them to
         // the database

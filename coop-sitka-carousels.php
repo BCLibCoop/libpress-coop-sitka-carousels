@@ -444,12 +444,11 @@ function coop_sitka_carousels_control_js() {
     $('#controls-submit').addClass('disabled');
     //default
       let $period_options = $('input:radio[name=recheck_period]');
-      let $period_checked = $('input:radio[name=recheck_period]:checked');
 
       $period_options.click(function(event) {
           //reset
           $('#run-messages').html('');
-          $period_checked = $($period_checked.selector);
+          let $period_checked = $('input:radio[name=recheck_period]:checked');
         if ($period_checked.val() !== undefined) { //just in case
             $('#controls-submit').removeClass('disabled').val('Ready to run.');
         }
@@ -530,8 +529,9 @@ array('targets' => [], 'period' => 1 ) ) {
   );
 
   //Explode into array, no double quotes.
-  $parsed_args['targets'] = explode(',', str_replace('"', "",
-    $parsed_args['targets'] ) );
+  if (isset($parsed_args['targets'])) $parsed_args['targets'] = explode(',',
+    str_replace('"', "", $parsed_args['targets'] ) );
+  else $parsed_args['targets'] = [];
 
     WP_CLI::debug("ARGS " . print_r($parsed_args, TRUE));
 
