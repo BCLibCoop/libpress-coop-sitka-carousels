@@ -84,9 +84,9 @@ function coop_sitka_carousels_controls_form() {
 
     //Only show controls when a shortname is set and non-default.
     if ( $shortname && $shortname != 'NA' ) {
-        $out[] = "<h3>Sitka Carousel Controls - {$site_name}</h3>";
-        $out[] = "<p>Last full run: <input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}></p>";
-        $out[] = '<div class="sitka-carousel-controls">
+      $out[] = "<h3>Sitka Carousel Controls - {$site_name}</h3>";
+      $out[] = "<p>Last full run: <input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}></p>";
+      $out[] = '<div class="sitka-carousel-controls">
         <form>
             <h4>Set re-check period:</h4>
                 <div class="sitka-carousel-radios">
@@ -95,18 +95,18 @@ function coop_sitka_carousels_controls_form() {
                 <input type="radio" id="last_four" name="recheck_period" value="4">4 months ago<br>
                 </div><br />';
 
-        $out[] = get_submit_button('Select a period.', 'primary large', 'controls-submit',
-        FALSE) . '</form>';
-        if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list'))
-            $run_message = "The following new items were retrieved last run:
-<br /><pre>". json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
+      $out[] = get_submit_button('Select a period.', 'primary large', 'controls-submit',
+          FALSE) . '</form>';
+      if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list'))
+        $run_message = "<br />The following new items were retrieved last run:
+<br /><pre>" . json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
         $out[] = "<p id='run-messages'>{$run_message}</p></div>";
         echo implode("\n", $out);
-    } else {
+    } else { //no $shortname
         echo sprintf('<h3>No Sitka Carousels shortname set for this site.</h3>
-        <p>Set a shortname <a href="%swp-admin/network/sites.php?page=sitka-libraries">here</a> to allow carousel runs.</p>',
+                <p>Set a shortname <a href="%swp-admin/network/sites.php?page=sitka-libraries">here</a> to allow carousel runs.</p>',
           network_site_url());
-    }
+      }
 }
 
 // Add callback to handle the admin form submission
@@ -350,7 +350,8 @@ function coop_sitka_carousels_sitka_libraries_page() {
     //If no value for locg exists, set it to 1 (parent container for Sitka)
     $lib_locg = (!get_option('_coop_sitka_lib_locg')) ? update_option('_coop_sitka_lib_locg', '1') : get_option('_coop_sitka_lib_locg');
 
-    //Must be blank by default. Same shortname stem used when it agrees with Sitka catalogue subdomain. Blogs with custom domains are the only ones targetted here.
+    //Must be blank by default. Same shortname stem used when it agrees with Sitka catalogue subdomain.
+    //Blogs with custom domains are the only ones targeted here.
     $lib_cat_link = get_option('_coop_sitka_lib_cat_link');
 
     // Output form
@@ -439,14 +440,15 @@ function coop_sitka_carousels_control_js() {
   ?>
   <script type="text/javascript" >
   jQuery(document).ready(function($) {
-    //reset
-    $('#run-messages').html('');
+
     $('#controls-submit').addClass('disabled');
     //default
       let $period_options = $('input:radio[name=recheck_period]');
       let $period_checked = $('input:radio[name=recheck_period]:checked');
 
       $period_options.click(function(event) {
+          //reset
+          $('#run-messages').html('');
           $period_checked = $($period_checked.selector);
         if ($period_checked.val() !== undefined) { //just in case
             $('#controls-submit').removeClass('disabled').val('Ready to run.');
@@ -492,18 +494,16 @@ function coop_sitka_carousels_control_callback() {
     wp_send_json_error();
   }
 
-  $mode = sanitize_text_field($data['mode']);
   $recheck_period = (int) sanitize_text_field($data['recheck_period']);
 
-  // mode is always single when triggered by this button
+  // mode is always 'single' when triggered by this button
   $blog = get_current_blog_id();
 
   //Schedule the run wrapper in cron
-  //coop_sitka_carousels_limited_run($mode, [$blog]);
 
   wp_schedule_single_event( time() + 60,
     'coop_sitka_carousels_trigger',
-    array($mode, [$blog]),
+    array([$blog], $recheck_period),
     FALSE
   );
   wp_send_json_success(NULL, 200);
@@ -522,30 +522,28 @@ function coop_sitka_carousels_register_cli_cmd() {
  * @param array $assoc_args
  */
 function coop_sitka_carousels_limited_run_cmd( $args = array(), $assoc_args =
-array
-('mode' => 'single',
-  'target' => array() ) ) {
+array('targets' => [], 'period' => 1 ) ) {
 
-  // Get arguments.
+  // Get arguments - no positional $args
   $parsed_args = wp_parse_args(
-    $args,
     $assoc_args
   );
 
-  if (!empty($parsed_args['target'])) {
-    //WP_CLI::debug("Checking for new items for blog ID
-    // {$parsed_args['target'][0]}...");
+  //Explode into array, no double quotes.
+  $parsed_args['targets'] = explode(',', str_replace('"', "",
+    $parsed_args['targets'] ) );
+
     WP_CLI::debug("ARGS " . print_r($parsed_args, TRUE));
 
-//    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
     try {
       $CarouselRunner = coop_sitka_carousels_limited_run(
-        $parsed_args['mode'],
-        array((int) $parsed_args['target'])
+        $parsed_args['targets'],
+        $parsed_args['period']
       );
 
       if ($newItems = $CarouselRunner::getNewListItems()) {
-        WP_CLI::success("The following new items were retrieved: <pre>" . json_encode($newItems, JSON_PRETTY_PRINT) . "</pre>");
+        WP_CLI::success("The following new items were retrieved: " .
+          json_encode($newItems, JSON_PRETTY_PRINT) );
       }
       else {
         WP_CLI::error("Failed to populate any new items.");
@@ -553,16 +551,15 @@ array
     } catch (\Exception $error) {
       WP_CLI::error("Failed to create CarouselRunner: {$error->getMessage()}.");
     }
-  }
 }
 
 /**
  * Wrapper for constructing a CarouselRunner
- * @param string $mode
  * @param array $targets
+ * @param int $period
  * @return \SitkaCarouselRunner
  */
-function coop_sitka_carousels_limited_run ($mode= '', $targets = []) {
+function coop_sitka_carousels_limited_run($targets = [], $period) {
     require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
-    return new \SitkaCarouselRunner($mode, $targets);
+    return new \SitkaCarouselRunner($targets, $period);
 }

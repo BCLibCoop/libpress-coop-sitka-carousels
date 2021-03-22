@@ -33,22 +33,22 @@ if (! class_exists('SitkaCarouselRunner') ):
 
     /**
      * SitkaCarouselRunner constructor.
-     * @param string $mode
      * @param array $targets
      * @param int $period
      */
-    public function __construct( $mode = 'all', $targets = array(), $period = 1
-    ) {
+    public function __construct( $targets = array(), $period = 1) {
 
       global $wpdb;
+      //Initialize default mode switch
+      $sweep = TRUE; //TRUE: sweep/all, FALSE: single or subset
+      if ( count($targets) >= 1 ) $sweep = FALSE;
 
-      //Initialize with the lists
-      $this->newListItems = array_fill_keys(CAROUSEL_TYPE, array());
+      //Variable for populated targets
       $libraries = [];
 
       require_once( WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-constants.php');
 
-      if ($mode == 'all') {
+      if ($sweep === TRUE) {
         print("Starting check for new items (network-wide)...");
 
         // Yesterday's date - We use yesterday's date so that in the off-chance a new
@@ -75,6 +75,9 @@ if (! class_exists('SitkaCarouselRunner') ):
 
         // Switch to the current library's WP instance
         switch_to_blog($library['blog_id']);
+
+        //Initialize attribute containing list status
+        //$this->newListItems = array_fill_keys(CAROUSEL_TYPE, array());
 
         // Get the library's short name - if not set, skip
         if ( get_option("_coop_sitka_lib_shortname") ) {
@@ -109,8 +112,9 @@ if (! class_exists('SitkaCarouselRunner') ):
         // Get the date of the last carousel update, if no update use 4 months ago
         $option_last_checked = get_option('_coop_sitka_carousels_date_last_checked', date('Y-m-d', mktime(0,0,0, date('m')-4, date('d'), date('Y'))));
 
-        //Override for this run
-        if ($mode == 'single')
+        //Override period for this run if not sweeping
+        //Default: last month ($period == 1)
+        if ($sweep === FALSE)
           $recheck_period = "P" . $period . "M";
 
           try {
@@ -240,12 +244,13 @@ if (! class_exists('SitkaCarouselRunner') ):
                              array('%d'));
 
               //Save relevant metadata for user list
-              $this->newListItems[$carousel_type][] = array(
-                'bibkey' => $item['bibkey'],
-                'title' => $item['title'],
-                'date_active' => $item['date_active'],
-                'catalogue_url' => $item['catalogue_url'],
-              );
+              $this->newListItems[$library['blog_id']][$carousel_type][] =
+                array(
+                  'bibkey' => $item['bibkey'],
+                  'title' => $item['title'],
+                  'date_active' => $item['date_active'],
+                  'catalogue_url' => $item['catalogue_url'],
+                );
               // if isset($item_copy_data[10] (date_active)
             } else {
               //Remove from table or keep in case item starts circulating?
@@ -262,6 +267,7 @@ if (! class_exists('SitkaCarouselRunner') ):
         set_transient('_coop_sitka_carousels_new_items_by_list',
           $this->newListItems, 1800);
         // Set current blog back to the previous one, which is our main network blog
+        print "Completed run for Blog ID {$library['blog_id']}.\r\n";
         restore_current_blog();
       }
     }
