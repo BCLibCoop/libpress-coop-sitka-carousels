@@ -254,8 +254,8 @@ function sitka_carousels_shortcode( $attr ) {
     // Build the HTML to return for the short tag
     $tag_html .= "<div class='sikta-item'>" .
                    "<a href='" . $row['catalogue_url'] . "'>" .
-                     "<img src='" . $row['cover_url'] . "' class='sitka-carousel-image'>" .
-                     "<img src='" . plugins_url( 'img/nocover.jpg', __FILE__ ) ."' class='sitka-carousel-image sitka-carousel-image-default'>" .
+                     "<img alt='' src='" . $row['cover_url'] . "' class='sitka-carousel-image'>" .
+                     "<img alt='' src='" . plugins_url( 'img/nocover.jpg', __FILE__ ) ."' class='sitka-carousel-image sitka-carousel-image-default'>" .
                      "<div class='sitka-info'>" .
                        "<span class='sitka-title'>" . $row['title'] . "</span><br />" .
                        "<span class='sitka-author'>" . $row['author'] . "</span>" .
@@ -267,7 +267,7 @@ function sitka_carousels_shortcode( $attr ) {
 
   $tag_html .= "</div></div>";
 
-  $tag_html .= "<script type='text/javascript'>
+  $tag_html .= "<script>
     jQuery(document).ready(function(){
       jQuery('." . end( $carousel_class ) . "').slick({
       slidesToShow: 1,
