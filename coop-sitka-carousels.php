@@ -9,7 +9,7 @@
  * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as Network Activated.
  * Author: Ben Holt, BC Libraries Coop
  * Author URI: http://bc.libraries.coop
- * Version: 0.1.3
+ * Version: 0.1.5
  **/
 
 // Include constants definitions
