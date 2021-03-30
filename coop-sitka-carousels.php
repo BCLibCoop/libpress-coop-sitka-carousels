@@ -9,7 +9,7 @@
  * Description: New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels. Install as Network Activated.
  * Author: Ben Holt, BC Libraries Coop
  * Author URI: http://bc.libraries.coop
- * Version: 0.1.3
+ * Version: 0.1.5
  **/
 
 // Include constants definitions
@@ -443,25 +443,29 @@ function coop_sitka_carousels_control_js() {
 
     $('#controls-submit').addClass('disabled');
     //default
-      let $period_options = $('input:radio[name=recheck_period]');
+    let $period_options = $('input:radio[name=recheck_period]');
 
-      $period_options.click(function(event) {
-          //reset
-          $('#run-messages').html('');
-          let $period_checked = $('input:radio[name=recheck_period]:checked');
-        if ($period_checked.val() !== undefined) { //just in case
+    $period_options.click(function(event) {
+      //reset
+        $('#run-messages').html('');
+        let period_checked = $('input:radio[name=recheck_period]:checked');
+        console.log("PerCheckOption: " + period_checked.val());
+        if ($(period_checked).val() !== undefined) { //just in case
             $('#controls-submit').removeClass('disabled').val('Ready to run.');
         }
     });
 
     $('#controls-submit').click( function (event) {
       event.preventDefault();
-      $period_checked = $($period_checked.selector);
+      let period_checked = $('input:radio[name=recheck_period]').filter
+      (':checked');
+      console.log("PerCheckSubmit: " + period_checked.val());
+      //$period_checked = $($period_checked.selector);
 
       let data = {
         action: 'coop_sitka_carousels_control_callback',
         mode: 'single',
-        recheck_period: $period_checked.val(),
+        recheck_period: period_checked.val(),
         security: '<?php echo $ajax_nonce; ?>',
       };
 
