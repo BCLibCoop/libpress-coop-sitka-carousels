@@ -17,7 +17,7 @@
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.0.0
+ * Version:           1.0.1
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -380,7 +380,7 @@ function coop_sitka_carousels_sitka_libraries_page()
 
         '<h2>Sitka Libraries</h2>' .
         '<p>&nbsp;</p>' .
-        '<form method="post" action="">' .
+        '<form method="post" action="' . admin_url('admin-post.php') . '">' .
 
         '<table class="sitka-lists-admin-table">' .
         '  <tr><th>WP site id</th><th>Domain name</th><th>Sitka Shortcode</th><th>Sitka Locale</th>' .
@@ -426,6 +426,7 @@ function coop_sitka_carousels_sitka_libraries_page()
         '</td><td></td></tr>' .
         '</table>' .
         wp_nonce_field('admin_post', 'coop_sitka_carousels_nonce') .
+        '<input type="hidden" name="action" value="sitka_carousels">' .
         '</form>' .
         '</div><!-- .wrap -->';
 
@@ -461,11 +462,11 @@ function coop_sitka_carousels_save_admin_callback()
         // Loop through each blog and update
         switch_to_blog($blog->blog_id);
 
+        // Collect and sanitize values for this site
         $shortname = strtoupper(sanitize_text_field($_POST['shortcode_' . $blog->blog_id]));
-        $locg = sanitize_text_field($_POST['locg_' . $blog->blog_id]);
+        $locg = (int) sanitize_text_field($_POST['locg_' . $blog->blog_id]);
         $cat_link = sanitize_text_field($_POST['cat_link_' . $blog->blog_id]);
 
-        // Shortcode
         // Note: The previous carousel plugin appears to have put NA in as a placeholder for unset shortcodes so
         //       we test for it here
         if (!empty($shortname) && $shortname !== "NA") {
@@ -488,7 +489,7 @@ function coop_sitka_carousels_save_admin_callback()
     // Return to the form page
     wp_redirect(network_admin_url('sites.php?page=sitka-libraries'));
 }
-add_action('admin_post', 'coop_sitka_carousels_save_admin_callback');
+add_action('admin_post_sitka_carousels', 'coop_sitka_carousels_save_admin_callback');
 
 function coop_sitka_carousels_control_js()
 {
