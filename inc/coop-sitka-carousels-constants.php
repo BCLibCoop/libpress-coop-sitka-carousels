@@ -49,7 +49,7 @@ define('CAROUSEL_LITFORM', [
 
 define('CAROUSEL_FORMAT', [
     'print' => 'search_format(physicalbooks)',
-    'large_print' => 'item_type(a,t)%20item_form(d)',
+    'large_print' => 'item_type(a,t) item_form(d)',
     'dvd' => 'item_type(g)',
     'cd' => 'item_type(j)',
     'dvdscds' => 'item_type(g,j)',

@@ -17,7 +17,7 @@
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.0.1
+ * Version:           1.1.0
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -116,7 +116,7 @@ function coop_sitka_carousels_controls_form()
     $shortname = get_option('_coop_sitka_lib_shortname');
 
     // Only show controls when a shortname is set and non-default.
-    if ($shortname && $shortname != 'NA') {
+    if ($shortname && $shortname !== 'NA') {
         $out[] = "<h3>Sitka Carousel Controls - {$site_name}</h3>";
         $out[] = "<p>Last full run: ";
         $out[] = "<input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}>";
@@ -263,7 +263,10 @@ function sitka_carousels_shortcode($attr)
     // up to CAROUSEL_MIN items, which would include items older than 1 month
     $new_items = $wpdb->get_var(
         $wpdb->prepare(
-            "SELECT COUNT(*) FROM $table_name WHERE carousel_type = %s AND date_active > (NOW() - INTERVAL 1 MONTH)",
+            "SELECT COUNT(*)
+            FROM $table_name
+            WHERE carousel_type = %s
+            AND date_active > (NOW() - INTERVAL 1 MONTH)",
             $type
         )
     );
@@ -272,7 +275,6 @@ function sitka_carousels_shortcode($attr)
         // Use items added within last month
         $sql = $wpdb->prepare("SELECT bibkey AS bibkey,
                                   catalogue_url AS catalogue_url,
-                                  cover_url AS cover_url,
                                   title AS title,
                                   author AS author,
                                   description AS description
@@ -284,7 +286,6 @@ function sitka_carousels_shortcode($attr)
         // Use most recent CAROUSEL_MIN items
         $sql = $wpdb->prepare("SELECT bibkey AS bibkey,
                                   catalogue_url AS catalogue_url,
-                                  cover_url AS cover_url,
                                   title AS title,
                                   author AS author,
                                   description AS description
@@ -297,13 +298,35 @@ function sitka_carousels_shortcode($attr)
 
     $results = $wpdb->get_results($sql, ARRAY_A);
 
+    // Get the library's catalogue link
+    $current_domain = $GLOBALS['current_blog']->domain;
+    // Assume that our main/network blog will always have the subdomain 'libpress'
+    $network_domain = preg_replace('/^libpress\./', '', $GLOBALS['current_site']->domain);
+
+    if (!empty(get_option('_coop_sitka_lib_cat_link'))) {
+        $catalogue_prefix = 'https://' . trim(get_option('_coop_sitka_lib_cat_link')) . CAROUSEL_CATALOGUE_SUFFIX;
+    } elseif (count(explode('.', $current_domain)) >= 4 && strpos($current_domain, $network_domain) !== false) {
+        $catalogue_prefix = 'https://' . str_replace('.' . $network_domain, '', $current_domain)
+            . CAROUSEL_CATALOGUE_SUFFIX;
+    }
+
     $tag_html = "<div class='sitka-carousel-container'><div class='" . end($carousel_class)  . "' >";
 
     foreach ($results as $row) {
+        // Check if the catalogue link is stored with or without the prefix and prepend it if not
+        $catalogue_url = $row['catalogue_url'];
+
+        if (!(strpos($catalogue_url, 'http') === 0)) {
+            $catalogue_url = $catalogue_prefix . $catalogue_url;
+        }
+
+        // Build cover URL here so we can change size in the future if needed
+        $cover_url = CAROUSEL_EG_URL . 'opac/extras/ac/jacket/medium/r/' . $row['bibkey'];
+
         // Build the HTML to return for the short tag
         $tag_html .= "<div class='sikta-item'>" .
-            "<a href='" . $row['catalogue_url'] . "'>" .
-            "<img alt='' src='" . $row['cover_url'] . "' class='sitka-carousel-image'>" .
+            "<a href='" . $catalogue_url . "'>" .
+            "<img alt='' src='" . $cover_url . "' class='sitka-carousel-image'>" .
             "<img alt='' src='" . plugins_url('img/nocover.jpg', __FILE__)
                 . "' class='sitka-carousel-image sitka-carousel-image-default'>" .
             "<div class='sitka-info'>" .
@@ -591,6 +614,7 @@ function coop_sitka_carousels_limited_run_cmd($args, $assoc_args)
         [
             'targets' => [],
             'period' => 1,
+            'skip-search' => false,
         ]
     );
 
@@ -604,9 +628,9 @@ function coop_sitka_carousels_limited_run_cmd($args, $assoc_args)
     WP_CLI::debug("ARGS " . print_r($parsed_args, true));
 
     try {
-        $CarouselRunner = coop_sitka_carousels_limited_run($parsed_args['targets'], $parsed_args['period']);
+        $CarouselRunner = coop_sitka_carousels_limited_run($parsed_args['targets'], $parsed_args['period'], $parsed_args['skip-search']);
 
-        if ($newItems = $CarouselRunner::getNewListItems()) {
+        if ($newItems = $CarouselRunner->getNewListItems()) {
             WP_CLI::success("The following new items were retrieved: " . json_encode($newItems, JSON_PRETTY_PRINT));
         } else {
             WP_CLI::error("Failed to populate any new items.");
@@ -622,9 +646,10 @@ function coop_sitka_carousels_limited_run_cmd($args, $assoc_args)
  * @param int $period
  * @return \SitkaCarouselRunner
  */
-function coop_sitka_carousels_limited_run($targets = [], $period = 1)
+function coop_sitka_carousels_limited_run($targets = [], $period = 1, $skip_search = false)
 {
-    require_once WP_PLUGIN_DIR . '/coop-sitka-carousels/inc/coop-sitka-carousels-update.php';
-    return new \SitkaCarouselRunner($targets, $period);
+    require_once 'inc/coop-sitka-carousels-update.php';
+
+    return new \SitkaCarouselRunner($targets, $period, $skip_search);
 }
 add_action('coop_sitka_carousels_trigger', 'coop_sitka_carousels_limited_run', 10, 3);

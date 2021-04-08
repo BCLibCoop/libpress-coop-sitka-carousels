@@ -35,7 +35,7 @@ if (!class_exists('SitkaCarouselRunner')) :
          * @param array $targets
          * @param int $period
          */
-        public function __construct($targets = [], $period = 1)
+        public function __construct($targets = [], $period = 1, $skip_search = false)
         {
             global $wpdb;
 
@@ -66,12 +66,13 @@ if (!class_exists('SitkaCarouselRunner')) :
                 // Load the IDs as full WP_Site objects
                 foreach ($targets as $target) {
                     $libraries[] = get_blog_details($target);
-                    // var_dump($libraries);
                 }
             }
 
             // Loop through each library updating its carousel data
             foreach ($libraries as $library) {
+                echo "Starting run for Blog ID {$library->blog_id}.\n";
+
                 // Switch to the current library's WP instance
                 switch_to_blog($library->blog_id);
 
@@ -85,25 +86,18 @@ if (!class_exists('SitkaCarouselRunner')) :
                     continue;
                 }
 
-                // Get the library's catalogue link
-                if (get_option('_coop_sitka_lib_cat_link') != '') {
-                    $library->catalogue_link = 'https://' . get_option('_coop_sitka_lib_cat_link') . CAROUSEL_CATALOGUE_SUFFIX;
-                } else {
-                    $library->catalogue_link = 'https://' . preg_filter(CAROUSEL_DOMAIN_SUFFIX, '', $library->domain) . CAROUSEL_CATALOGUE_SUFFIX;
-                }
-
                 // Retrieve this library's meta data from EG
-                $eg_query_result = wp_remote_post(
-                    'https://catalogue.libraries.coop/osrf-http-translator',
-                    [
-                        'headers' => 'X-OpenSRF-service:open-ils.actor',
-                        'body' => 'osrf-msg=[{"__c":"osrfMessage","__p":{"threadTrace":"0","locale":"en-US","type":"REQUEST","payload":{"__c":"osrfMethod","__p":{'
-                            . '"method":"open-ils.actor.org_unit.retrieve_by_shortname","params":["' . $library->short_name . '"]}}}}]',
-                        'timeout' => CAROUSEL_QUERY_TIMEOUT,
-                    ]
-                );
+                $lib_meta = $this->osrfHttpQuery([
+                    'service' => 'open-ils.actor',
+                    'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
+                    'params' => [
+                        $library->short_name,
+                    ],
+                ]);
 
-                $lib_meta = json_decode(wp_remote_retrieve_body($eg_query_result))[0]->__p->payload->__p->content->__p;
+                if (!$lib_meta) {
+                    continue;
+                }
 
                 $library->locg = $lib_meta[3];
                 $library->parent_locg = $lib_meta[8];
@@ -125,46 +119,49 @@ if (!class_exists('SitkaCarouselRunner')) :
                     error_log("Something went wrong with date rechecking: " . $e->getMessage());
                 }
 
-                // Query Evergreen for new items for each carousel type and add them to
-                // the database
-                foreach (CAROUSEL_TYPE as $carousel_type) {
-                    $finished = false;
-                    $index = 1;
-                    $count = 25; // 25 is the max number of results Evergreen will return
+                $new_bibkeys = [];
 
-                    // The query may return multiple pages of results. Increment the $index by $count
-                    // and retrieve the next page until no links are found
-                    while (!$finished) {
-                        $eg_query_result = wp_remote_get(
-                            CAROUSEL_EG_URL . 'opac/extras/opensearch/1.1/' . $library->short_name . '/html-full/?searchTerms='
-                                . CAROUSEL_SEARCH[$carousel_type] . '%20create_date('
-                                . $date_checked . ')&searchSort=create_date&startIndex=' . $index . '&count=' . $count,
-                            ['timeout' => CAROUSEL_QUERY_TIMEOUT]
-                        );
-                        $result_html = wp_remote_retrieve_body($eg_query_result);
+                if (!$skip_search) {
+                    // Query Evergreen for new items for each carousel type and add them to the database
+                    foreach (CAROUSEL_TYPE as $carousel_type) {
+                        $finished = false;
+                        $offset = 0;
+                        $count = 50;
 
-                        libxml_use_internal_errors(true);
-                        $doc = new DOMDocument();
-                        $doc->loadHTML($result_html);
-                        $xpath = new DOMXpath($doc);
+                        // The query may return multiple pages of results. Increment the $offset by $count
+                        // and retrieve the next page until no links are found
+                        while (! $finished) {
+                            $carousel_results = $this->osrfHttpQuery([
+                                'service' => 'open-ils.search',
+                                'method' => 'open-ils.search.biblio.multiclass.query',
+                                'params' => [
+                                    [
+                                        'offset' => $offset,
+                                        'limit' => $count,
+                                        'searchSort' => 'create_date',
+                                    ],
+                                    'site(' . $library->short_name . ') create_date(' . $date_checked . ') '
+                                    . CAROUSEL_SEARCH[$carousel_type],
+                                    0
+                                ],
+                            ]);
 
-                        // Get the links to each returned item from the HTML page
-                        $link_urls = $xpath->query('//html/body/dl/dt/a/@href');
+                            // Get the ID keys if we got any results, else an empty array to fall through
+                            $bibkeys = $carousel_results ? array_column($carousel_results->ids, 0) : [];
 
-                        if ($link_urls->length > 0) {
-                            foreach ($link_urls as $link_url) {
-                                $link_parts = explode('/', $link_url->nodeValue);
-
-                                // Test to make sure the link URL includes the expected text
-                                if (preg_match('/biblio-record_entry/', $link_parts[5])) {
-                                    $bibkey = $link_parts[6];
-
+                            if (!empty($bibkeys)) {
+                                foreach ($bibkeys as $bibkey) {
                                     // Check that the bibkey doesn't already exist in the database
-                                    $query_results = $wpdb->get_results($wpdb->prepare("SELECT bibkey AS bibkey
-                                                                         FROM " . $wpdb->prefix . "sitka_carousels
-                                                                        WHERE bibkey = %d", $bibkey), ARRAY_A);
+                                    $query_results = $wpdb->get_results(
+                                        $wpdb->prepare(
+                                            "SELECT bibkey FROM {$wpdb->prefix}sitka_carousels WHERE bibkey = %d",
+                                            $bibkey
+                                        ),
+                                        ARRAY_A
+                                    );
 
-                                    if (count($query_results) == 0) {
+                                    if (count($query_results) === 0) {
+                                        $new_bibkeys[] = $bibkey;
                                         $wpdb->insert(
                                             $wpdb->prefix . 'sitka_carousels',
                                             [
@@ -175,62 +172,83 @@ if (!class_exists('SitkaCarouselRunner')) :
                                         );
                                     }
                                 }
-                            }
 
-                            // All links on this page processed, update index and then get next page
-                            $index = $index + $count;
-                        } else {
-                            // No link URLs found, have gone through all result pages
-                            $finished = true;
+                                // If we got all the results in one request, don't bother making another
+                                if (count($bibkeys) >= $carousel_results->count) {
+                                    $finished = true;
+                                } else {
+                                    // Processed these IDs, continue to the next page
+                                    $offset += $count;
+                                }
+                            } else {
+                                // Error or no results, continue on
+                                $finished = true;
+                            }
+                        }
+
+                        // Free some memory
+                        unset($carousel_results);
+                    } // foreach carousel_type
+                } else {
+                    echo "skipping search for new items as requested\n";
+                }
+
+                echo "found " . count($new_bibkeys) . " NEW bibkeys to check\n";
+
+                // All new bibkeys have been added to the db, now pull all
+                // items without a date_active and check
+                $inactive_items = $wpdb->get_results("SELECT bibkey, carousel_type
+                                                    FROM {$wpdb->prefix}sitka_carousels
+                                                    WHERE date_active IS NULL", ARRAY_A);
+
+                echo "found " . count($inactive_items) . " total INACTIVE bibkeys to check\n";
+
+                foreach ($inactive_items as $item) {
+                    // Query Evergreen to get the copy id and active date
+                    $item_copy_data = $this->osrfHttpQuery([
+                        'service' => 'open-ils.cat',
+                        'method' => 'open-ils.cat.asset.copy_tree.retrieve',
+                        'params' => [
+                            '',
+                            $item['bibkey'],
+                            $library->locg
+                        ],
+                    ]);
+
+                    // Drill down to the copy data if we got a response
+                    $copies = $item_copy_data ? $item_copy_data[0]->__p[0] : [];
+
+                    // Check all copies
+                    foreach ($copies as $copy) {
+                        $copy_data = $copy->__p;
+
+                        if (!empty($copy_data[10])) {
+                            $item['copy_id'] = $copy_data[22];
+
+                            // The active date comes in YYYY-MM-DDTHH:MM:SS-TZ, we need to convert to YYYY-MM-DD
+                            $item['date_active'] = date('Y-m-d', strtotime($copy_data[10]));
+
+                            // Break if we got an active date from this copy
+                            break;
                         }
                     }
 
-                    // All new bibkeys have been added to the db, now pull all
-                    // items without a date_active and check
-                    $inactive_items = $wpdb->get_results($wpdb->prepare("SELECT id AS id,
-                                                                       bibkey AS bibkey
-                                                                  FROM " . $wpdb->prefix . "sitka_carousels
-                                                                 WHERE carousel_type = %s
-                                                                   AND date_active IS NULL", $carousel_type), ARRAY_A);
+                    // The current bibkey has a date_active, gather the necessary info
+                    if (!empty($item['date_active'])) {
+                        // With the copy_id we can now query EG for the remaining info
+                        $item_data = $this->osrfHttpQuery([
+                            'service' => 'open-ils.search',
+                            'method' => 'open-ils.search.biblio.mods_from_copy',
+                            'params' => [
+                                $item['copy_id']
+                            ],
+                        ]);
 
-                    foreach ($inactive_items as $item) {
-                        // Query Evergreen to get the copy id and active date
-                        $eg_query_result = wp_remote_post(
-                            CAROUSEL_EG_URL . 'osrf-http-translator',
-                            [
-                                'headers' => 'X-OpenSRF-service:open-ils.cat',
-                                'body' => 'osrf-msg=[{"__c":"osrfMessage","__p":{"threadTrace":"0","locale":"en-US","type":"REQUEST","payload":{"__c":"osrfMethod","__p":{"method":"open-ils.cat.asset.copy_tree.retrieve","params":["", "' . $item['bibkey'] . '","' . $library->locg . '"]}}}}]',
-                                'timeout' => CAROUSEL_QUERY_TIMEOUT,
-                            ]
-                        );
-
-                        $item_copy_data = json_decode(wp_remote_retrieve_body($eg_query_result))[0]->__p->payload->__p->content[0]->__p[0][0]->__p;
-
-                        if (isset($item_copy_data[10])) {
-                            // The current bibkey has a date_active, gather the necessary info
-
-                            // The active date comes in YYYY-MM-DDTHH:MM:SS-TZ, we need to convert to YYYY-MM-DD
-                            $item_copy_date_parts = explode('T', $item_copy_data[10]);
-                            $item['date_active'] = $item_copy_date_parts[0];
-
-                            $item['copy_id'] = $item_copy_data[22];
-
-                            // With the copy_id we can now query EG for the remaining info
-                            $eg_query_result = wp_remote_post(
-                                CAROUSEL_EG_URL . 'osrf-http-translator',
-                                [
-                                    'headers' => 'X-OpenSRF-service:open-ils.search',
-                                    'body' => 'osrf-msg=[{"__c":"osrfMessage","__p":{"threadTrace":"0","locale":"en-US","type":"REQUEST","payload":{"__c":"osrfMethod","__p":{"method":"open-ils.search.biblio.mods_from_copy","params":["' . $item['copy_id'] . '"]}}}}]',
-                                    'timeout' => CAROUSEL_QUERY_TIMEOUT,
-                                ]
-                            );
-                            $item_copy_data = json_decode(wp_remote_retrieve_body($eg_query_result))[0]->__p->payload->__p->content->__p;
-
-                            $item['title'] = $item_copy_data[0];
-                            $item['author'] = $item_copy_data[1];
-                            $item['description'] = $item_copy_data[13];
-                            $item['catalogue_url'] = $library->catalogue_link . '/eg/opac/record/' . $item['bibkey'] . '?locg=' . $library->locg;
-                            $item['cover_url'] = CAROUSEL_EG_URL . 'opac/extras/ac/jacket/medium/r/' . $item['bibkey'];
+                        if (!empty($item_data)) {
+                            $item['title'] = $item_data[0];
+                            $item['author'] = $item_data[1];
+                            $item['description'] = $item_data[13];
+                            $item['catalogue_url'] = '/eg/opac/record/' . $item['bibkey'] . '?locg=' . $library->locg;
 
                             // Update the database to add our new information
                             $wpdb->update(
@@ -238,30 +256,33 @@ if (!class_exists('SitkaCarouselRunner')) :
                                 [
                                     'date_active' => $item['date_active'],
                                     'catalogue_url' => $item['catalogue_url'],
-                                    'cover_url' => $item['cover_url'],
                                     'title' => $item['title'],
                                     'author' => $item['author'],
                                     'description' => $item['description'],
                                 ],
                                 ['bibkey' => $item['bibkey']],
-                                ['%s', '%s', '%s', '%s', '%s', '%s'],
+                                ['%s', '%s', '%s', '%s', '%s'],
                                 ['%d']
                             );
 
                             // Save relevant metadata for user list
-                            $this->newListItems[$library->blog_id][$carousel_type][] =
-                                [
-                                    'bibkey' => $item['bibkey'],
-                                    'title' => $item['title'],
-                                    'date_active' => $item['date_active'],
-                                    'catalogue_url' => $item['catalogue_url'],
-                                ];
-                            // if isset($item_copy_data[10] (date_active)
-                        } else {
-                            // Remove from table or keep in case item starts circulating?
+                            $this->newListItems[$library->blog_id][$item['carousel_type']][] = [
+                                'bibkey' => $item['bibkey'],
+                                'title' => $item['title'],
+                                'date_active' => $item['date_active'],
+                                'catalogue_url' => $item['catalogue_url'],
+                            ];
                         }
-                    } // for each $inactive_item (bibkey without a date_active)
-                } // foreach carousel_type
+
+                        // Free some memory
+                        unset($item_data);
+                    } else {
+                        echo "no copy data or no active date for bibkey {$item['bibkey']}\n";
+                    }
+
+                    // Free some memory
+                    unset($item_copy_data);
+                } // for each $inactive_item (bibkey without a date_active)
 
                 // Set this library's _coop_sitka_carousels_date_last_checked to yesterday's date
                 // This is done in the off chance a new item has been added while we have been updating the carousel
@@ -278,14 +299,108 @@ if (!class_exists('SitkaCarouselRunner')) :
                 );
 
                 // Set current blog back to the previous one, which is our main network blog
-                print "Completed run for Blog ID {$library->blog_id}.\r\n";
+                echo "Completed run for Blog ID {$library->blog_id}.\n";
                 restore_current_blog();
             }
         }
 
-        public static function getNewListItems()
+        public function getNewListItems()
         {
-            return get_transient('_coop_sitka_carousels_new_items_by_list');
+            return $this->newListItems;
+        }
+
+        /**
+         * Helper function to generate the WP_Http::request() args for an OSRF
+         * request
+         *
+         * @param array $query_data
+         * @return array
+         */
+        private function osrfHttpQueryBuilder($request_data)
+        {
+            $request = [
+                'timeout' => CAROUSEL_QUERY_TIMEOUT,
+                'headers' => ['X-OpenSRF-service' => $request_data['service']],
+            ];
+
+            $osrf_msg = [];
+
+            $osrf_msg[] = [
+                '__c' => 'osrfMessage',
+                '__p' => [
+                    'threadTrace' => '0',
+                    'locale' => 'en-US',
+                    'type' => 'REQUEST',
+                    'payload' => [
+                        '__c' => 'osrfMethod',
+                        '__p' => [
+                            'method' => $request_data['method'],
+                            'params' => $request_data['params'],
+                        ],
+                    ],
+                ],
+            ];
+
+            $request['body'] = 'osrf-msg=' . json_encode($osrf_msg);
+
+            return $request;
+        }
+
+        private function osrfHttpQuery($request_data)
+        {
+            // Build the request
+            $query = $this->osrfHttpQueryBuilder($request_data);
+
+            // Post to the translator service
+            $eg_query_result = wp_remote_post(
+                'https://catalogue.libraries.coop/osrf-http-translator',
+                $query
+            );
+
+            // If the request completely errored, return null
+            if (wp_remote_retrieve_response_code($eg_query_result) !== 200) {
+                return null;
+            }
+
+            /**
+             * Do some best-effort checking of the returned response. The translator
+             * service seems to not be great about returning error status codes when then
+             * are no results or otherwise an error, and the nexting level of the data we
+             * want is inconsistent, so we do our best to check for errors and return data
+             * at a soemwhat useful point
+             */
+            if ($json_result = json_decode(wp_remote_retrieve_body($eg_query_result))) {
+                // Check for status message
+                foreach ($json_result as $osrf_message) {
+                    if (isset($osrf_message->__p) && $osrf_message->__p->type === 'STATUS') {
+                        $status_code = $osrf_message->__p->payload->__p->statusCode;
+
+                        // If the internal status code isn't in the 1xx or 2xx range, return null
+                        if ($status_code >= 300) {
+                            return null;
+                        }
+
+                        break;
+                    }
+                }
+
+                // Check for results message
+                foreach ($json_result as $osrf_message) {
+                    if (isset($osrf_message->__p) && $osrf_message->__p->type === 'RESULT') {
+                        $content = $osrf_message->__p->payload->__p->content;
+
+                        // Status codes don't seem to indicate a true bad response,
+                        // stacktrace seems to be a somewhat reliable way of finding an error
+                        if (isset($content->stacktrace)) {
+                            return null;
+                        }
+
+                        // Sometimes nested one more level, sometimes not.
+                        return $content->__p ?? $content;
+                    }
+                }
+            }
         }
     }
+
 endif;
