@@ -139,6 +139,33 @@ function coop_sitka_carousels_controls_form()
 
         $out[] = "<p id='run-messages'>{$run_message}</p></div>";
 
+        $out[] = "<h2>Carousel Search Links</h2>";
+        $out[] = "<p>Use these links to perform a similar search to the automated
+        checker for each type of carousel to see if an item should be showing in the carousel or not.</p>";
+        $out[] = "<ul>";
+
+        $option_last_checked = get_option(
+            '_coop_sitka_carousels_date_last_checked',
+            date('Y-m-d', mktime(0, 0, 0, date('m') - 4, date('d'), date('Y')))
+        );
+
+        try {
+            $date = date_create($option_last_checked);
+            $date->sub(new DateInterval('P1M'));
+            $date_checked = $date->format('Y-m-d');
+        } catch (Exception $e) {
+            error_log("Something went wrong with date rechecking: " . $e->getMessage());
+        }
+
+        foreach (CAROUSEL_TYPE as $carousel_type) {
+            $carousel_search = urlencode(CAROUSEL_SEARCH[$carousel_type] . " create_date($date_checked)");
+            $link = "https://catalogue.libraries.coop/opac/extras/opensearch/1.1/$shortname/html/?searchTerms=";
+            $link .= "$carousel_search&searchSort=create_date&count=25";
+            $out[] = "<li><a href=\"$link\" target=\"_blank\">$carousel_type</a></li>";
+        }
+
+        $out[] = "</ul>";
+
         echo implode("\n", $out);
     } else { // no $shortname
         echo sprintf(
