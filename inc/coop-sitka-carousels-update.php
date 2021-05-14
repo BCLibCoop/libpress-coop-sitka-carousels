@@ -86,6 +86,8 @@ if (!class_exists('SitkaCarouselRunner')) :
                     continue;
                 }
 
+                $library->branches = [];
+
                 // Retrieve this library's meta data from EG
                 $lib_meta = $this->osrfHttpQuery([
                     'service' => 'open-ils.actor',
@@ -99,8 +101,23 @@ if (!class_exists('SitkaCarouselRunner')) :
                     continue;
                 }
 
-                $library->locg = $lib_meta[3];
-                $library->parent_locg = $lib_meta[8];
+                $library->sitka_id = (int) $lib_meta[3];
+                $library->branches[] = $library->sitka_id;
+
+                // If this is a library system/network, collect all children
+                $lib_tree = $this->osrfHttpQuery([
+                    'service' => 'open-ils.actor',
+                    'method' => 'open-ils.actor.org_tree.descendants.retrieve',
+                    'params' => [
+                        $library->sitka_id,
+                    ],
+                ]);
+
+                if (!empty($lib_tree) && !empty($lib_tree[0])) {
+                    foreach ($lib_tree[0] as $lib_child) {
+                        $library->branches[] = (int) $lib_child->__p[3];
+                    }
+                }
 
                 // Get the date of the last carousel update, if no update use 4 months ago
                 $option_last_checked = get_option(
@@ -202,6 +219,7 @@ if (!class_exists('SitkaCarouselRunner')) :
                                                     WHERE date_active IS NULL", ARRAY_A);
 
                 echo "found " . count($inactive_items) . " total INACTIVE bibkeys to check\n";
+                echo "search at location ids: " . implode(", ", $library->branches) . "\n";
 
                 foreach ($inactive_items as $item) {
                     // Query Evergreen to get the copy id and active date
@@ -211,7 +229,7 @@ if (!class_exists('SitkaCarouselRunner')) :
                         'params' => [
                             '',
                             $item['bibkey'],
-                            $library->locg
+                            $library->branches,
                         ],
                     ]);
 
@@ -219,65 +237,73 @@ if (!class_exists('SitkaCarouselRunner')) :
                     $copies = $item_copy_data ? $item_copy_data[0]->__p[0] : [];
 
                     // Check all copies
-                    foreach ($copies as $copy) {
-                        $copy_data = $copy->__p;
+                    if (!empty($copies)) {
+                        foreach ($copies as $copy) {
+                            $copy_data = $copy->__p;
 
-                        if (!empty($copy_data[10])) {
-                            $item['copy_id'] = $copy_data[22];
+                            if (!empty($copy_data[10])) {
+                                $item['copy_id'] = $copy_data[22];
 
-                            // The active date comes in YYYY-MM-DDTHH:MM:SS-TZ, we need to convert to YYYY-MM-DD
-                            $item['date_active'] = date('Y-m-d', strtotime($copy_data[10]));
+                                // The active date comes in YYYY-MM-DDTHH:MM:SS-TZ, we need to convert to YYYY-MM-DD
+                                $item['date_active'] = date('Y-m-d', strtotime($copy_data[10]));
 
-                            // Break if we got an active date from this copy
-                            break;
+                                // Circulating Library for this copy
+                                $item['circ_lib'] = $copy_data[5];
+
+                                // Break if we got an active date from this copy
+                                break;
+                            }
                         }
-                    }
 
-                    // The current bibkey has a date_active, gather the necessary info
-                    if (!empty($item['date_active'])) {
-                        // With the copy_id we can now query EG for the remaining info
-                        $item_data = $this->osrfHttpQuery([
-                            'service' => 'open-ils.search',
-                            'method' => 'open-ils.search.biblio.mods_from_copy',
-                            'params' => [
-                                $item['copy_id']
-                            ],
-                        ]);
+                        // The current bibkey has a date_active, gather the necessary info
+                        if (!empty($item['date_active'])) {
+                            // With the copy_id we can now query EG for the remaining info
+                            $item_data = $this->osrfHttpQuery([
+                                'service' => 'open-ils.search',
+                                'method' => 'open-ils.search.biblio.mods_from_copy',
+                                'params' => [
+                                    $item['copy_id'],
+                                ],
+                            ]);
 
-                        if (!empty($item_data)) {
-                            $item['title'] = $item_data[0];
-                            $item['author'] = $item_data[1];
-                            $item['description'] = $item_data[13];
-                            $item['catalogue_url'] = '/eg/opac/record/' . $item['bibkey'] . '?locg=' . $library->locg;
+                            if (!empty($item_data)) {
+                                $item['title'] = $item_data[0];
+                                $item['author'] = $item_data[1];
+                                $item['description'] = $item_data[13];
+                                $item['catalogue_url'] = '/eg/opac/record/' . $item['bibkey']
+                                    . '?locg=' . $item['circ_lib'];
 
-                            // Update the database to add our new information
-                            $wpdb->update(
-                                $wpdb->prefix . 'sitka_carousels',
-                                [
+                                // Update the database to add our new information
+                                $wpdb->update(
+                                    $wpdb->prefix . 'sitka_carousels',
+                                    [
+                                        'date_active' => $item['date_active'],
+                                        'catalogue_url' => $item['catalogue_url'],
+                                        'title' => $item['title'],
+                                        'author' => $item['author'],
+                                        'description' => $item['description'],
+                                    ],
+                                    ['bibkey' => $item['bibkey']],
+                                    ['%s', '%s', '%s', '%s', '%s'],
+                                    ['%d']
+                                );
+
+                                // Save relevant metadata for user list
+                                $this->newListItems[$library->blog_id][$item['carousel_type']][] = [
+                                    'bibkey' => $item['bibkey'],
+                                    'title' => $item['title'],
                                     'date_active' => $item['date_active'],
                                     'catalogue_url' => $item['catalogue_url'],
-                                    'title' => $item['title'],
-                                    'author' => $item['author'],
-                                    'description' => $item['description'],
-                                ],
-                                ['bibkey' => $item['bibkey']],
-                                ['%s', '%s', '%s', '%s', '%s'],
-                                ['%d']
-                            );
+                                ];
+                            }
 
-                            // Save relevant metadata for user list
-                            $this->newListItems[$library->blog_id][$item['carousel_type']][] = [
-                                'bibkey' => $item['bibkey'],
-                                'title' => $item['title'],
-                                'date_active' => $item['date_active'],
-                                'catalogue_url' => $item['catalogue_url'],
-                            ];
+                            // Free some memory
+                            unset($item_data);
+                        } else {
+                            echo "no active date for bibkey {$item['bibkey']}\n";
                         }
-
-                        // Free some memory
-                        unset($item_data);
                     } else {
-                        echo "no copy data or no active date for bibkey {$item['bibkey']}\n";
+                        echo "no copy data for bibkey {$item['bibkey']}\n";
                     }
 
                     // Free some memory
