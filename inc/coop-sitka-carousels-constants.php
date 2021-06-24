@@ -1,13 +1,14 @@
 <?php
 
 // The Evergreen URL
-define('CAROUSEL_EG_URL', 'https://catalogue.libraries.coop/');
-
-// The part of a library's domain to remove when creating a EG catalogue link, formatted as a pattern for preg_filter
-define('CAROUSEL_DOMAIN_SUFFIX', '/\.libraries\.coop/');
+define('CAROUSEL_EG_URL', 'https://catalogue.libraries.coop');
 
 // The suffix to form a library specific link to the EG catalogue
 define('CAROUSEL_CATALOGUE_SUFFIX', '.catalogue.libraries.coop');
+
+// Library domains that are on the prod cluster. Everything else will be
+// parsed out to go to the catologue in the domain
+define('CAROUSEL_PROD_LIBS', ['bc', 'mb']);
 
 // Minimum number of items to return for a carousel
 define('CAROUSEL_MIN', 8);

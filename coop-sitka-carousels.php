@@ -1,4 +1,6 @@
-<?php defined('ABSPATH') || die(-1);
+<?php
+
+defined('ABSPATH') || die(-1);
 
 /**
  * Sitka Carousels
@@ -17,7 +19,7 @@
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.2.0
+ * Version:           1.3.0
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -114,6 +116,7 @@ function coop_sitka_carousels_controls_form()
     $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
     $site_name = get_option('blogname');
     $shortname = get_option('_coop_sitka_lib_shortname');
+    $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
 
     // Only show controls when a shortname is set and non-default.
     if ($shortname && $shortname !== 'NA') {
@@ -157,9 +160,17 @@ function coop_sitka_carousels_controls_form()
             error_log("Something went wrong with date rechecking: " . $e->getMessage());
         }
 
+        $opensearch_url = CAROUSEL_EG_URL;
+        $cat_suffix = array_filter(explode('.', $lib_cat_url));
+        $cat_suffix = end($cat_suffix);
+
+        if (!empty($cat_suffix) && !in_array($cat_suffix, CAROUSEL_PROD_LIBS)) {
+            $opensearch_url = 'https://' . $cat_suffix . CAROUSEL_CATALOGUE_SUFFIX;
+        }
+
         foreach (CAROUSEL_TYPE as $carousel_type) {
             $carousel_search = urlencode(CAROUSEL_SEARCH[$carousel_type] . " create_date($date_checked)");
-            $link = "https://catalogue.libraries.coop/opac/extras/opensearch/1.1/$shortname/html/?searchTerms=";
+            $link = $opensearch_url . "/opac/extras/opensearch/1.1/$shortname/html/?searchTerms=";
             $link .= "$carousel_search&searchSort=create_date&count=25";
             $out[] = "<li><a href=\"$link\" target=\"_blank\">$carousel_type</a></li>";
         }
@@ -348,7 +359,7 @@ function sitka_carousels_shortcode($attr)
         }
 
         // Build cover URL here so we can change size in the future if needed
-        $cover_url = CAROUSEL_EG_URL . 'opac/extras/ac/jacket/medium/r/' . $row['bibkey'];
+        $cover_url = $catalogue_prefix . '/opac/extras/ac/jacket/medium/r/' . $row['bibkey'];
 
         // Build the HTML to return for the short tag
         $tag_html .= "<div class='sikta-item'>" .
@@ -621,7 +632,7 @@ function coop_sitka_carousels_control_callback()
 }
 add_action('wp_ajax_coop_sitka_carousels_control_callback', 'coop_sitka_carousels_control_callback');
 
-//Custom CLI commands
+// Custom CLI commands
 function coop_sitka_carousels_register_cli_cmd()
 {
     WP_CLI::add_command('sitka-carousel-runner', 'coop_sitka_carousels_limited_run_cmd');
