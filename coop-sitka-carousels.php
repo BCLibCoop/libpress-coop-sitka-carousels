@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.3.0
+ * Version:           1.3.1
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -341,6 +341,8 @@ function sitka_carousels_shortcode($attr)
     // Assume that our main/network blog will always have the subdomain 'libpress'
     $network_domain = preg_replace('/^libpress\./', '', $GLOBALS['current_site']->domain);
 
+    $lib_locg = get_option('_coop_sitka_lib_locg', 1);
+
     if (!empty(get_option('_coop_sitka_lib_cat_link'))) {
         $catalogue_prefix = 'https://' . trim(get_option('_coop_sitka_lib_cat_link')) . CAROUSEL_CATALOGUE_SUFFIX;
     } elseif (count(explode('.', $current_domain)) >= 4 && strpos($current_domain, $network_domain) !== false) {
@@ -351,10 +353,18 @@ function sitka_carousels_shortcode($attr)
     $tag_html = "<div class='sitka-carousel-container'><div class='" . end($carousel_class)  . "' >";
 
     foreach ($results as $row) {
-        // Check if the catalogue link is stored with or without the prefix and prepend it if not
+        // Get possible catalogue URL from db
         $catalogue_url = $row['catalogue_url'];
 
-        if (!(strpos($catalogue_url, 'http') === 0)) {
+        // If catalogue URL isn't stored, create it
+        if (empty($catalogue_url)) {
+            $catalogue_url = $catalogue_prefix . sprintf(
+                "/eg/opac/record/%d?locg=%d",
+                $row['bibkey'],
+                $lib_locg,
+            );
+        } elseif (!(strpos($catalogue_url, 'http') === 0)) {
+            // If catalogue URL doesn't have prefix, add it
             $catalogue_url = $catalogue_prefix . $catalogue_url;
         }
 

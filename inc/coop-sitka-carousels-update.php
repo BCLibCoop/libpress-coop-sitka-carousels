@@ -114,6 +114,7 @@ class SitkaCarouselRunner
             $this->library->branches[] = $this->library->sitka_id;
 
             // If this is a library system/network, collect all children
+            // so that we can look for copies at all branches later
             $lib_tree = $this->osrfHttpQuery([
                 'service' => 'open-ils.actor',
                 'method' => 'open-ils.actor.org_tree.descendants.retrieve',
@@ -256,9 +257,6 @@ class SitkaCarouselRunner
                             // The active date comes in YYYY-MM-DDTHH:MM:SS-TZ, we need to convert to YYYY-MM-DD
                             $item['date_active'] = date('Y-m-d', strtotime($copy_data[10]));
 
-                            // Circulating Library for this copy
-                            $item['circ_lib'] = $copy_data[5];
-
                             // Break if we got an active date from this copy
                             break;
                         }
@@ -279,15 +277,12 @@ class SitkaCarouselRunner
                             $item['title'] = $item_data[0];
                             $item['author'] = $item_data[1];
                             $item['description'] = $item_data[13];
-                            $item['catalogue_url'] = '/eg/opac/record/' . $item['bibkey']
-                                . '?locg=' . $item['circ_lib'];
 
                             // Update the database to add our new information
                             $wpdb->update(
                                 $wpdb->prefix . 'sitka_carousels',
                                 [
                                     'date_active' => $item['date_active'],
-                                    'catalogue_url' => $item['catalogue_url'],
                                     'title' => $item['title'],
                                     'author' => $item['author'],
                                     'description' => $item['description'],
@@ -302,7 +297,6 @@ class SitkaCarouselRunner
                                 'bibkey' => $item['bibkey'],
                                 'title' => $item['title'],
                                 'date_active' => $item['date_active'],
-                                'catalogue_url' => $item['catalogue_url'],
                             ];
                         }
 
