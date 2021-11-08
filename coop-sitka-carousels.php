@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.3.1
+ * Version:           1.3.2
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -178,12 +178,16 @@ function coop_sitka_carousels_controls_form()
         $out[] = "</ul>";
 
         echo implode("\n", $out);
-    } else { // no $shortname
+    } elseif (is_super_admin()) {
         echo sprintf(
-            '<h3>No Sitka Carousels shortname set for this site.</h3>
+            '<h3>No Sitka Carousels shortname set for this site</h3>
             <p>Set a shortname <a href="%s">here</a> to allow carousel runs.</p>',
             network_admin_url('sites.php?page=sitka-libraries')
         );
+    } else {
+        echo '<h3>Sitka Carosel Not Enabled</h3>';
+        echo '<p>This site is not set up to fetch carosel data from a Sitka catalogue.
+        If you believe this is an error, please open a support ticket.</p>';
     }
 }
 

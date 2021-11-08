@@ -87,8 +87,9 @@ class SitkaCarouselRunner
             // $this->newListItems = array_fill_keys(CAROUSEL_TYPE, []);
 
             // Get the library's short name - if not set, skip
-            if (get_option('_coop_sitka_lib_shortname')) {
-                $this->library->short_name = get_option('_coop_sitka_lib_shortname');
+            $shortname = get_option('_coop_sitka_lib_shortname');
+            if ($shortname && $shortname !== 'NA') {
+                $this->library->short_name = $shortname;
             } else {
                 $this->library = null;
                 continue;
