@@ -13,7 +13,7 @@ defined('ABSPATH') || die(-1);
  * @author            Ben Holt <ben.holt@bc.libraries.coop>
  * @author            Jonathan Schatz <jonathan.schatz@bc.libraries.coop>
  * @author            Sam Edwards <sam.edwards@bc.libraries.coop>
- * @copyright         2019-2021 BC Libraries Cooperative
+ * @copyright         2019-2022 BC Libraries Cooperative
  * @license           GPL-2.0-or-later
  *
  * @wordpress-plugin
@@ -77,20 +77,6 @@ function coop_sitka_carousels_meta_box_add()
     );
 }
 add_action('add_meta_boxes', 'coop_sitka_carousels_meta_box_add', 10, 2);
-
-// Add submenu page for managing the Sitka libraries, their library code, catalogue links, etc.
-function coop_sitka_carousels_network_admin_menu()
-{
-    add_submenu_page(
-        'sites.php',
-        'Sitka Libraries',
-        'Sitka Libraries',
-        'manage_network',
-        'sitka-libraries',
-        'coop_sitka_carousels_sitka_libraries_page'
-    );
-}
-add_action('network_admin_menu', 'coop_sitka_carousels_network_admin_menu');
 
 function coop_sitka_carousels_controls_admin()
 {
@@ -265,7 +251,6 @@ function sitka_carousels_install()
     }
 }
 
-
 /*
  * Callback function for when a new blog is added to a network install
  */
@@ -278,7 +263,6 @@ function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, 
     }
 }
 add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6);
-
 
 /*
  * Callback function for generating sitka_carousel shortag
@@ -412,7 +396,6 @@ function sitka_carousels_shortcode($attr)
     return $tag_html;
 }
 
-
 /*
  * Custom Meta Box on Highlights admin page to provide instructions on how to add
  * a Sitka Carousel shortcode.
@@ -430,141 +413,6 @@ function sitka_carousels_inner_custom_box($post)
 
     echo $out;
 }
-
-/*
- * Network Admin configuration page for setting each library's Sitka Shortcode, Sitka Locale, and Catalogue Domain.
- */
-function coop_sitka_carousels_sitka_libraries_page()
-{
-    if (! is_super_admin()) {
-        // User is not a network admin
-        wp_die('Sorry, you do not have permission to access this page');
-    }
-
-    // Get all active public blogs
-    $blogs = get_sites([
-        'public' => 1,
-        'archived' => 0,
-        'deleted' => 0,
-    ]);
-
-    $out = '<div class="wrap">' .
-        '  <div id="icon-options-general" class="icon32">' .
-        '  <br>' .
-        '</div>' .
-
-        '<h2>Sitka Libraries</h2>' .
-        '<p>&nbsp;</p>' .
-        '<form method="post" action="' . admin_url('admin-post.php') . '">' .
-
-        '<table class="sitka-lists-admin-table">' .
-        '  <tr><th>WP site id</th><th>Domain name</th><th>Sitka Shortcode</th><th>Sitka Locale</th>' .
-            '<th>Catalogue domain</th></tr>';
-
-    // Loop through each blog lookup options and output form
-    foreach ($blogs as $blog) {
-        switch_to_blog($blog->blog_id);
-
-        $lib_shortcode = get_option('_coop_sitka_lib_shortname', '');
-
-        // If no value for locg exists, set it to 1 (parent container for Sitka)
-        $lib_locg = get_option('_coop_sitka_lib_locg', 1);
-
-        // Must be blank by default. Same shortname stem used when it agrees with Sitka catalogue subdomain.
-        // Blogs with custom domains are the only ones targeted here.
-        $lib_cat_link = get_option('_coop_sitka_lib_cat_link', '');
-
-        // Output form
-        $out .= sprintf(
-            '<tr>' .
-            '<td>%d</td><td>%s</td>' .
-            '<td><input type="text" name="shortcode_%d" class="shortcode widefat" value="%s"></td>' .
-            '<td><input type="text" name="locg_%d" class="shortcode widefat" value="%d"></td>' .
-            '<td><input type="text" name="cat_link_%d" class=shortcode widefat" value="%s"></td>' .
-            '</tr>',
-            $blog->blog_id,
-            $blog->domain,
-            $blog->blog_id,
-            $lib_shortcode,
-            $blog->blog_id,
-            $lib_locg,
-            $blog->blog_id,
-            $lib_cat_link
-        );
-
-        // Switch back to previous blog (main network blog)
-        restore_current_blog();
-    }
-
-    $out .= '<tr><td>&nbsp;</td><td></td><td></td></tr>' .
-        '<tr><td><button class="button button-primary sitka-libraries-save-btn">Save changes</button>' .
-        '</td><td></td></tr>' .
-        '</table>' .
-        wp_nonce_field('admin_post', 'coop_sitka_carousels_nonce') .
-        '<input type="hidden" name="action" value="sitka_carousels">' .
-        '</form>' .
-        '</div><!-- .wrap -->';
-
-    echo $out;
-}
-
-/*
- * Callback to handle the network admin form submission
- */
-function coop_sitka_carousels_save_admin_callback()
-{
-    // Check the nonce field, if it doesn't verify report error and stop
-    if (
-        empty($_POST['coop_sitka_carousels_nonce'])
-        || !wp_verify_nonce($_POST['coop_sitka_carousels_nonce'], 'admin_post')
-    ) {
-        wp_die('Sorry, there was an error handling your form submission.');
-    }
-
-    if (! is_super_admin()) {
-        // User is not a network admin
-        wp_die('Sorry, you do not have permission to access this page');
-    }
-
-    // Get all active public blogs
-    $blogs = get_sites([
-        'public' => 1,
-        'archived' => 0,
-        'deleted' => 0,
-    ]);
-
-    foreach ($blogs as $blog) {
-        // Loop through each blog and update
-        switch_to_blog($blog->blog_id);
-
-        // Collect and sanitize values for this site
-        $shortname = strtoupper(sanitize_text_field($_POST['shortcode_' . $blog->blog_id]));
-        $locg = (int) sanitize_text_field($_POST['locg_' . $blog->blog_id]);
-        $cat_link = sanitize_text_field($_POST['cat_link_' . $blog->blog_id]);
-
-        // Note: The previous carousel plugin appears to have put NA in as a placeholder for unset shortcodes so
-        //       we test for it here
-        if (!empty($shortname) && $shortname !== "NA") {
-            update_option('_coop_sitka_lib_shortname', $shortname);
-        }
-
-        // Sitka Locale (locg)
-        if (is_numeric($locg)) {
-            update_option('_coop_sitka_lib_locg', $locg);
-        }
-
-        // Catalogue Link
-        if (!empty($cat_link)) {
-            update_option('_coop_sitka_lib_cat_link', $cat_link);
-        }
-
-        restore_current_blog();
-    }
-
-    // Return to the form page
-    wp_redirect(network_admin_url('sites.php?page=sitka-libraries'));
-}
-add_action('admin_post_sitka_carousels', 'coop_sitka_carousels_save_admin_callback');
 
 function coop_sitka_carousels_control_js()
 {
