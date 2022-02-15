@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.5.1
+ * Version:           1.5.2
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0

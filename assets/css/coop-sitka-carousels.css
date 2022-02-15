@@ -9,6 +9,7 @@
   text-align: center;
 }
 
+/* Description is hidden for now */
 .sitka-description {
   display: none;
 }
@@ -51,10 +52,4 @@
 }
 .sitka-carousel.slick-initialized .sitka-item {
   display: block;
-  visibility: visible !important;
-}
-
-.sitka-carousel.slick-initialized {
-  visibility: visible;
-  opacity: 1;
 }
