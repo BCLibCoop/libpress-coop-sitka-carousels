@@ -18,7 +18,7 @@
   height: 225px;
   z-index: 10;
   position: absolute;
-  top: 0px;
+  /* top: 0px; */
   margin: 0 27.5px;
 }
 
@@ -42,21 +42,19 @@
 }
 
 /* Hide extra slides while loading */
-.slick-slider {
+.sitka-carousel .sitka-item {
   display: none;
 }
 
-.slick-slider:first-child {
+.sitka-carousel .sitka-item:first-child {
   display: block;
-  visibility: hidden;
 }
-
-.slick-initialized.slick-slider {
+.sitka-carousel.slick-initialized .sitka-item {
   display: block;
   visibility: visible !important;
 }
 
-.slick-slider.slick-initialized {
+.sitka-carousel.slick-initialized {
   visibility: visible;
   opacity: 1;
 }

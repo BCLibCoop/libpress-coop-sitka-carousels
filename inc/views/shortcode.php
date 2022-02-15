@@ -1,5 +1,5 @@
 <div class="sitka-carousel-container">
-    <div class="slick-slider <?= end($carousel_class) ?>">
+    <div class="sitka-carousel <?= end($carousel_class) ?>">
         <?php foreach ($results as $row) : ?>
             <?php
             // Get possible catalogue URL from db
