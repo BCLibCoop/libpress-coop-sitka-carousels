@@ -1,9 +1,10 @@
-.slick-prev::before, .slick-next::before {
+.slick-prev::before,
+.slick-next::before {
   color: #000;
 }
 
 .sitka-carousel-container {
-  width: 150px;
+  width: 205px;
   margin: 0px auto;
   text-align: center;
 }
@@ -18,6 +19,7 @@
   z-index: 10;
   position: absolute;
   top: 0px;
+  margin: 0 27.5px;
 }
 
 .sitka-carousel-image-default {
@@ -31,10 +33,30 @@
 
 .sitka-title {
   font-size: 0.8em;
-  font-family: 'PT Sans', sans-serif;
+  font-family: "PT Sans", sans-serif;
 }
 
 .sitka-author {
   font-size: 0.7em;
   font-style: italic;
+}
+
+/* Hide extra slides while loading */
+.slick-slider {
+  display: none;
+}
+
+.slick-slider:first-child {
+  display: block;
+  visibility: hidden;
+}
+
+.slick-initialized.slick-slider {
+  display: block;
+  visibility: visible !important;
+}
+
+.slick-slider.slick-initialized {
+  visibility: visible;
+  opacity: 1;
 }

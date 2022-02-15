@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.3.2
+ * Version:           1.5.0
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -49,20 +49,41 @@ function coop_sitka_carousels_enqueue_dependencies()
     // Add slick javascript to <head> - https://kenwheeler.github.io/slick/
     wp_enqueue_script(
         'coop-sitka-carousels-slick-js',
-        plugins_url('slick/slick.min.js', __FILE__),
+        plugins_url('assets/slick/slick.min.js', __FILE__),
         ['jquery'],
         false,
         true
     );
 
     // Add CSS for slick javascript library
-    wp_enqueue_style('coop-sitka-carousels-slick-css', plugins_url('slick/slick.css', __FILE__), false);
-    wp_enqueue_style('coop-sitka-carousels-slick-theme-css', plugins_url('slick/slick-theme.css', __FILE__), false);
+    wp_enqueue_style('coop-sitka-carousels-slick-css', plugins_url('assets/slick/slick.css', __FILE__), false);
+    wp_enqueue_style(
+        'coop-sitka-carousels-slick-theme-css',
+        plugins_url('assets/slick/slick-theme.css', __FILE__),
+        false
+    );
 
     // Add CSS for carousel customization
-    wp_enqueue_style('coop-sitka-carousels-css', plugins_url('css/coop-sitka-carousels.css', __FILE__), false);
+    wp_enqueue_style('coop-sitka-carousels-css', plugins_url('assets/css/coop-sitka-carousels.css', __FILE__), false);
 }
 add_action('wp_enqueue_scripts', 'coop_sitka_carousels_enqueue_dependencies');
+
+function coop_sitka_carousels_enqueue_admin_dependencies($hook)
+{
+    if ($hook === 'site-manager_page_sitka-carousel-controls') {
+        wp_enqueue_script(
+            'coop-sitka-carousels-admin-js',
+            plugins_url('assets/js/admin.js', __FILE__),
+            ['jquery'],
+            false,
+            true
+        );
+
+        $ajax_nonce = wp_create_nonce('coop-sitka-carousels-limit-run');
+        wp_localize_script('coop-sitka-carousels-admin-js', 'coop_sitka_carousels', ['nonce' => $ajax_nonce]);
+    }
+}
+add_action('admin_enqueue_scripts', 'coop_sitka_carousels_enqueue_admin_dependencies');
 
 // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
 function coop_sitka_carousels_meta_box_add()
@@ -97,84 +118,39 @@ function coop_sitka_carousels_controls_form()
     // Last checked option date
     // Radio buttons: Last month, 3 months, 6 months
     // Submit button -> AJAX show output of runner
-    $out = [];
+
     $run_message = '';
     $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
-    $site_name = get_option('blogname');
     $shortname = get_option('_coop_sitka_lib_shortname');
     $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
 
-    // Only show controls when a shortname is set and non-default.
-    if ($shortname && $shortname !== 'NA') {
-        $out[] = "<h3>Sitka Carousel Controls - {$site_name}</h3>";
-        $out[] = "<p>Last full run: ";
-        $out[] = "<input type='text' id='last_checked' name='last_checked' disabled value={$last_checked}>";
-        $out[] = "</p>";
-        $out[] = '<div class="sitka-carousel-controls">
-                    <form>
-                        <h4>Set re-check period:</h4>
-                        <div class="sitka-carousel-radios">
-                            <input type="radio" id="last_one" name="recheck_period" value="1">Last month<br>
-                            <input type="radio" id="last_two" name="recheck_period" value="2">2 months ago<br>
-                            <input type="radio" id="last_four" name="recheck_period" value="4">4 months ago<br>
-                </div><br />';
-
-        $out[] = get_submit_button('Select a period.', 'primary large', 'controls-submit', false) . '</form>';
-
-        if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list')) {
-            $run_message = "<br />The following new items were retrieved last run:<br /><pre>"
-                            . json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
-        }
-
-        $out[] = "<p id='run-messages'>{$run_message}</p></div>";
-
-        $out[] = "<h2>Carousel Search Links</h2>";
-        $out[] = "<p>Use these links to perform a similar search to the automated
-        checker for each type of carousel to see if an item should be showing in the carousel or not.</p>";
-        $out[] = "<ul>";
-
-        $option_last_checked = get_option(
-            '_coop_sitka_carousels_date_last_checked',
-            date('Y-m-d', mktime(0, 0, 0, date('m') - 4, date('d'), date('Y')))
-        );
-
-        try {
-            $date = date_create($option_last_checked);
-            $date->sub(new DateInterval('P1M'));
-            $date_checked = $date->format('Y-m-d');
-        } catch (Exception $e) {
-            error_log("Something went wrong with date rechecking: " . $e->getMessage());
-        }
-
-        $opensearch_url = CAROUSEL_EG_URL;
-        $cat_suffix = array_filter(explode('.', $lib_cat_url));
-        $cat_suffix = end($cat_suffix);
-
-        if (!empty($cat_suffix) && !in_array($cat_suffix, CAROUSEL_PROD_LIBS)) {
-            $opensearch_url = 'https://' . $cat_suffix . CAROUSEL_CATALOGUE_SUFFIX;
-        }
-
-        foreach (CAROUSEL_TYPE as $carousel_type) {
-            $carousel_search = urlencode(CAROUSEL_SEARCH[$carousel_type] . " create_date($date_checked)");
-            $link = $opensearch_url . "/opac/extras/opensearch/1.1/$shortname/html/?searchTerms=";
-            $link .= "$carousel_search&searchSort=create_date&count=25";
-            $out[] = "<li><a href=\"$link\" target=\"_blank\">$carousel_type</a></li>";
-        }
-
-        $out[] = "</ul>";
-
-        echo implode("\n", $out);
-    } elseif (is_super_admin()) {
-        echo sprintf(
-            '<h3>No Sitka Carousels shortname set for this site</h3>
-            <p>Set a shortname <a href="%s">here</a> to allow carousel runs.</p>',
-            network_admin_url('sites.php?page=sitka-libraries')
-        );
-    } else {
-        echo '<h3>Sitka Carosel Not Enabled</h3>';
-        echo '<p>This site is not set up to fetch carosel data from a Sitka catalogue.
-        If you believe this is an error, please open a support ticket.</p>';
+    if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list')) {
+        $run_message = "<br />The following new items were retrieved last run:<br /><pre>" . json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
     }
+
+    $option_last_checked = get_option(
+        '_coop_sitka_carousels_date_last_checked',
+        date('Y-m-d', mktime(0, 0, 0, date('m') - 4, date('d'), date('Y')))
+    );
+
+    try {
+        $date = date_create($option_last_checked);
+        $date->sub(new DateInterval('P1M'));
+        $date_checked = $date->format('Y-m-d');
+    } catch (Exception $e) {
+        // error_log("Something went wrong with date rechecking: " . $e->getMessage());
+        $date_checked = '';
+    }
+
+    $opensearch_url = CAROUSEL_EG_URL;
+    $cat_suffix = array_filter(explode('.', $lib_cat_url));
+    $cat_suffix = end($cat_suffix);
+
+    if (!empty($cat_suffix) && !in_array($cat_suffix, CAROUSEL_PROD_LIBS)) {
+        $opensearch_url = 'https://' . $cat_suffix . CAROUSEL_CATALOGUE_SUFFIX;
+    }
+
+    include dirname(__FILE__) . '/inc/views/admin.php';
 }
 
 /*
@@ -274,6 +250,7 @@ function sitka_carousels_shortcode($attr)
     // Variable created to ensure each carousel on a page has a unique class, variable is static so that it
     // is available across multiple calls to this function
     static $carousel_class = [];
+
     $carousel_class[] = 'sitka-carousel-' . count($carousel_class);
 
     // Set carousel type
@@ -338,159 +315,49 @@ function sitka_carousels_shortcode($attr)
             . CAROUSEL_CATALOGUE_SUFFIX;
     }
 
-    $tag_html = "<div class='sitka-carousel-container'><div class='" . end($carousel_class)  . "' >";
+    $no_cover = plugins_url('assets/img/nocover.jpg', __FILE__);
 
-    foreach ($results as $row) {
-        // Get possible catalogue URL from db
-        $catalogue_url = $row['catalogue_url'];
+    ob_start();
 
-        // If catalogue URL isn't stored, create it
-        if (empty($catalogue_url)) {
-            $catalogue_url = $catalogue_prefix . sprintf(
-                "/eg/opac/record/%d?locg=%d",
-                $row['bibkey'],
-                $lib_locg,
-            );
-        } elseif (!(strpos($catalogue_url, 'http') === 0)) {
-            // If catalogue URL doesn't have prefix, add it
-            $catalogue_url = $catalogue_prefix . $catalogue_url;
-        }
+    include dirname(__FILE__) . '/inc/views/shortcode.php';
 
-        // Build cover URL here so we can change size in the future if needed
-        $cover_url = $catalogue_prefix . '/opac/extras/ac/jacket/medium/r/' . $row['bibkey'];
-
-        // Build the HTML to return for the short tag
-        $tag_html .= "<div class='sikta-item'>" .
-            "<a href='" . $catalogue_url . "'>" .
-            "<img alt='' src='" . $cover_url . "' class='sitka-carousel-image'>" .
-            "<img alt='' src='" . plugins_url('img/nocover.jpg', __FILE__)
-                . "' class='sitka-carousel-image sitka-carousel-image-default'>" .
-            "<div class='sitka-info'>" .
-            "<span class='sitka-title'>" . $row['title'] . "</span><br />" .
-            "<span class='sitka-author'>" . $row['author'] . "</span>" .
-            "</div>" .
-            "</a>" .
-            "<div class='sitka-description'>" . $row['description'] . "</div>" .
-            "</div>";
-    } // foreach
-
-    $tag_html .= "</div></div>";
-
-    $tag_html .= "<script>
-    jQuery(document).ready(function(){
-      jQuery('." . end($carousel_class) . "').slick({
-      slidesToShow: 1,
-        slidesToScroll: 1,
-        autoplay: true,
-        autoplaySpeed: 3000,
-        speed: 1000,
-        infinite: true,
-        pauseOnHover: true,
-        accessibility: true,
-        fade: ";
-    $transition == 'fade' ? $tag_html .= "true" : $tag_html .= "false";
-    $tag_html .=  "});
-     })
-    </script>";
-
-    return $tag_html;
+    return ob_get_clean();
 }
 
 /*
  * Custom Meta Box on Highlights admin page to provide instructions on how to add
  * a Sitka Carousel shortcode.
  */
-function sitka_carousels_inner_custom_box($post)
+function sitka_carousels_inner_custom_box()
 {
-    $out = '<p>Sitka Carousels can be added to this Highlight by inserting one or more shortcodes ' .
-        'into the Highlight text. Shortcodes take the following format:' .
-        '<br /> <strong>[sitka_carousel type="adult_fiction" transition="fade"]</strong></p>' .
-        '<p>Possible values for type: adult_fiction, adult_nonfiction, adult_largeprint, adult_dvds, adult_music, ' .
-        'teen_fiction, teen_nonfiction, juvenile_fiction, juvenile_nonfiction, or juvenile_dvdscds. Defaults ' .
-        'to adult_fiction.</p>' .
-        '<p>Possible values for transition are fade or swipe. Defaults to fade.</p>' .
-        '<p>More than one carousel shortcode can be added to a Highlight.</p>';
-
-    echo $out;
+    include dirname(__FILE__) . '/inc/views/metabox.php';
 }
-
-function coop_sitka_carousels_control_js()
-{
-    $ajax_nonce = wp_create_nonce('coop-sitka-carousels-limit-run');
-    $ajax_url = admin_url('admin-ajax.php');
-    ?>
-    <script type="text/javascript">
-        jQuery(document).ready(function($) {
-            $('#controls-submit').addClass('disabled');
-
-            // default
-            $('input:radio[name=recheck_period]').on('click', function(event) {
-                // reset
-                $('#run-messages').html('');
-                let period_checked = $('input:radio[name=recheck_period]:checked');
-                console.log("PerCheckOption: " + period_checked.val());
-                if ($(period_checked).val() !== undefined) { // just in case
-                    $('#controls-submit').removeClass('disabled').val('Ready to run.');
-                }
-            });
-
-            $('#controls-submit').on('click', function(event) {
-                event.preventDefault();
-                let period_checked = $('input:radio[name=recheck_period]').filter(':checked');
-                console.log("PerCheckSubmit: " + period_checked.val());
-                // $period_checked = $($period_checked.selector);
-
-                let data = {
-                    action: 'coop_sitka_carousels_control_callback',
-                    mode: 'single',
-                    recheck_period: period_checked.val(),
-                    security: '<?php echo $ajax_nonce; ?>',
-                };
-
-                // Give user cue not to click again
-                $('#controls-submit').addClass('disabled').val('Working...');
-                // Provide status message
-                $('#run-messages').html('This can take a few minutes for ' +
-                    'the average library. Please wait...');
-
-                // $('#controls-submit').removeClass('disabled').val('Ready to run.');
-
-                $.post('<?php echo $ajax_url; ?>', data, function(response) {
-                    if (response.success == true) {
-                        console.log('Carousel run has been scheduled in a few ' +
-                            'minutes. Check again for next cron run for results.');
-                    }
-                });
-            });
-        });
-    </script>
-    <?php
-}
-add_action('admin_footer', 'coop_sitka_carousels_control_js');
 
 // Action callback for single or groups runs called by AJAX
 function coop_sitka_carousels_control_callback()
 {
-    $data = $_POST;
-
-    if (check_ajax_referer('coop-sitka-carousels-limit-run', 'security', false) == false) {
+    if (check_ajax_referer('coop-sitka-carousels-limit-run', false, false) === false) {
         wp_send_json_error();
     }
 
-    $recheck_period = (int) sanitize_text_field($data['recheck_period']);
+    $recheck_period = (int) sanitize_text_field($_POST['recheck_period']);
 
     // mode is always 'single' when triggered by this button
     $blog = get_current_blog_id();
 
     // Schedule the run wrapper in cron
-    wp_schedule_single_event(
+    $event = wp_schedule_single_event(
         time() + 60,
         'coop_sitka_carousels_trigger',
         [[$blog], $recheck_period],
         false
     );
 
-    wp_send_json_success(null, 200);
+    if ($event && !is_wp_error($event)) {
+        wp_send_json_success();
+    }
+
+    wp_send_json_error();
 }
 add_action('wp_ajax_coop_sitka_carousels_control_callback', 'coop_sitka_carousels_control_callback');
 
