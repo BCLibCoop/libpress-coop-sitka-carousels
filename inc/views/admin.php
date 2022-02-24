@@ -31,12 +31,12 @@
 
     <ul>
       <?php foreach (CAROUSEL_TYPE as $carousel_type) : ?>
-        <?php $link = sprintf(
-            "%s/opac/extras/opensearch/1.1/%s/html/?searchTerms=%s&searchSort=create_date&count=25",
-            $opensearch_url,
-            $shortname,
-            urlencode(CAROUSEL_SEARCH[$carousel_type] . " create_date($date_checked)")
-        ); ?>
+            <?php $link = sprintf(
+                "%s/opac/extras/opensearch/1.1/%s/html/?searchTerms=%s&searchSort=create_date&count=25",
+                $opensearch_url,
+                $shortname,
+                urlencode(CAROUSEL_SEARCH[$carousel_type] . " create_date($date_checked)")
+            ); ?>
         <li>
           <a href="<?= $link ?>" target="_blank"><?= $carousel_type ?></a>
         </li>

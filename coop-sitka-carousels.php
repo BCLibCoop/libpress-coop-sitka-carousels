@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.5.2
+ * Version:           1.5.3
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -51,20 +51,31 @@ function coop_sitka_carousels_enqueue_dependencies()
         'coop-sitka-carousels-slick-js',
         plugins_url('assets/slick/slick.min.js', __FILE__),
         ['jquery'],
-        false,
+        get_plugin_data(__FILE__, false, false)['Version'],
         true
     );
 
     // Add CSS for slick javascript library
-    wp_enqueue_style('coop-sitka-carousels-slick-css', plugins_url('assets/slick/slick.css', __FILE__), false);
+    wp_enqueue_style(
+        'coop-sitka-carousels-slick-css',
+        plugins_url('assets/slick/slick.css', __FILE__),
+        [],
+        get_plugin_data(__FILE__, false, false)['Version']
+    );
     wp_enqueue_style(
         'coop-sitka-carousels-slick-theme-css',
         plugins_url('assets/slick/slick-theme.css', __FILE__),
-        false
+        [],
+        get_plugin_data(__FILE__, false, false)['Version']
     );
 
     // Add CSS for carousel customization
-    wp_enqueue_style('coop-sitka-carousels-css', plugins_url('assets/css/coop-sitka-carousels.css', __FILE__), false);
+    wp_enqueue_style(
+        'coop-sitka-carousels-css',
+        plugins_url('assets/css/coop-sitka-carousels.css', __FILE__),
+        [],
+        get_plugin_data(__FILE__, false, false)['Version']
+    );
 }
 add_action('wp_enqueue_scripts', 'coop_sitka_carousels_enqueue_dependencies');
 
@@ -75,7 +86,7 @@ function coop_sitka_carousels_enqueue_admin_dependencies($hook)
             'coop-sitka-carousels-admin-js',
             plugins_url('assets/js/admin.js', __FILE__),
             ['jquery'],
-            false,
+            get_plugin_data(__FILE__, false, false)['Version'],
             true
         );
 
@@ -243,63 +254,17 @@ add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6);
 /*
  * Callback function for generating sitka_carousel shortag
  */
-function sitka_carousels_shortcode($attr)
+function sitka_carousels_shortcode($attr = [])
 {
-    global $wpdb;
-
     // Variable created to ensure each carousel on a page has a unique class, variable is static so that it
     // is available across multiple calls to this function
     static $carousel_class = [];
 
     $carousel_class[] = 'sitka-carousel-' . count($carousel_class);
 
-    // Set carousel type
-    $type = (!empty($attr['type']) && in_array($attr['type'], CAROUSEL_TYPE)) ? $attr['type'] : CAROUSEL_TYPE[0];
-
     // Set transition type
     $transition = (!empty($attr['transition']) && in_array($attr['transition'], CAROUSEL_TRANSITION)) ?
         $attr['transition'] : CAROUSEL_TRANSITION[0];
-
-    $table_name = "{$wpdb->prefix}sitka_carousels";
-
-    // Get the number of new items in the last month, will be used to decide whether to show items from last month or
-    // up to CAROUSEL_MIN items, which would include items older than 1 month
-    $new_items = $wpdb->get_var(
-        $wpdb->prepare(
-            "SELECT COUNT(*)
-            FROM $table_name
-            WHERE carousel_type = %s
-            AND date_active > (NOW() - INTERVAL 1 MONTH)",
-            $type
-        )
-    );
-
-    if ($new_items >= CAROUSEL_MIN) {
-        // Use items added within last month
-        $sql = $wpdb->prepare("SELECT bibkey AS bibkey,
-                                  catalogue_url AS catalogue_url,
-                                  title AS title,
-                                  author AS author,
-                                  description AS description
-                             FROM $table_name
-                            WHERE carousel_type = %s
-                              AND date_active > (NOW() - INTERVAL 1 MONTH)
-                         ORDER BY date_active DESC", $type);
-    } else {
-        // Use most recent CAROUSEL_MIN items
-        $sql = $wpdb->prepare("SELECT bibkey AS bibkey,
-                                  catalogue_url AS catalogue_url,
-                                  title AS title,
-                                  author AS author,
-                                  description AS description
-                             FROM $table_name
-                            WHERE carousel_type = %s
-                              AND date_active IS NOT NULL
-                         ORDER BY date_active DESC
-                            LIMIT %d", [$type, CAROUSEL_MIN]);
-    }
-
-    $results = $wpdb->get_results($sql, ARRAY_A);
 
     // Get the library's catalogue link
     $current_domain = $GLOBALS['current_blog']->domain;
@@ -317,11 +282,78 @@ function sitka_carousels_shortcode($attr)
 
     $no_cover = plugins_url('assets/img/nocover.jpg', __FILE__);
 
+    // In the future, this will look for a "carousel ID" type attribute in the
+    // shortcode and switch retrieval methods
+    if (true) {
+        $results = sitka_database_carousel($attr);
+    } else {
+        $results = sitka_osrf_carousel($attr);
+    }
+
     ob_start();
 
     include dirname(__FILE__) . '/inc/views/shortcode.php';
 
     return ob_get_clean();
+}
+
+/**
+ * Retrieve titles from the database that have been previously searched for and
+ * stored
+ */
+function sitka_database_carousel($attr = [])
+{
+    global $wpdb;
+
+    // Set carousel type
+    $type = (!empty($attr['type']) && in_array($attr['type'], CAROUSEL_TYPE)) ?
+        $attr['type'] : CAROUSEL_TYPE[0];
+
+    $table_name = "{$wpdb->prefix}sitka_carousels";
+
+    // Get the number of new items in the last month, will be used to decide whether to show items from last month or
+    // up to CAROUSEL_MIN items, which would include items older than 1 month
+    $new_items = $wpdb->get_var(
+        $wpdb->prepare(
+            "SELECT COUNT(*)
+            FROM $table_name
+            WHERE carousel_type = %s
+            AND date_active > (NOW() - INTERVAL 1 MONTH)",
+            $type
+        )
+    );
+
+    $query = "SELECT bibkey,
+                    catalogue_url,
+                    title,
+                    author,
+                    `description`
+                    FROM $table_name
+                    WHERE carousel_type = %s ";
+
+    if ($new_items >= CAROUSEL_MIN) {
+        // Use items added within last month
+        $sql = $wpdb->prepare($query .
+                             "AND date_active > (NOW() - INTERVAL 1 MONTH)
+                         ORDER BY date_active DESC", $type);
+    } else {
+        // Use most recent CAROUSEL_MIN items
+        $sql = $wpdb->prepare($query .
+                             "AND date_active IS NOT NULL
+                         ORDER BY date_active DESC
+                            LIMIT %d", [$type, CAROUSEL_MIN]);
+    }
+
+    return $wpdb->get_results($sql, ARRAY_A);
+}
+
+/**
+ * Retrieve a specific carousel ID from Sitka, caching in a transient for a
+ * reasonable amount of time
+ */
+function sitka_osrf_carousel($attr = [])
+{
+    return [];
 }
 
 /*
@@ -395,7 +427,11 @@ function coop_sitka_carousels_limited_run_cmd($args, $assoc_args)
     WP_CLI::debug("ARGS " . print_r($parsed_args, true));
 
     try {
-        $CarouselRunner = coop_sitka_carousels_limited_run($parsed_args['targets'], $parsed_args['period'], $parsed_args['skip-search']);
+        $CarouselRunner = coop_sitka_carousels_limited_run(
+            $parsed_args['targets'],
+            $parsed_args['period'],
+            $parsed_args['skip-search']
+        );
 
         if ($newItems = $CarouselRunner->getNewListItems()) {
             WP_CLI::success("The following new items were retrieved: " . json_encode($newItems, JSON_PRETTY_PRINT));
