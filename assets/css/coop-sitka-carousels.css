@@ -1,8 +1,3 @@
-.slick-prev::before,
-.slick-next::before {
-  color: #000;
-}
-
 .sitka-carousel-container {
   width: 205px;
   margin: 0px auto;
@@ -19,8 +14,8 @@
   height: 225px;
   z-index: 10;
   position: absolute;
-  /* top: 0px; */
-  margin: 0 27.5px;
+  top: 0px;
+  /* margin: 0 27.5px; */
 }
 
 .sitka-carousel-image-default {
@@ -50,6 +45,7 @@
 .sitka-carousel .sitka-item:first-child {
   display: block;
 }
-.sitka-carousel.slick-initialized .sitka-item {
+
+.sitka-carousel.flickity-enabled .sitka-item {
   display: block;
 }

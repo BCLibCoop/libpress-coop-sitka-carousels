@@ -46,34 +46,57 @@ add_shortcode('sitka_carousel', 'sitka_carousels_shortcode');
 // Enqueue scripts and styles
 function coop_sitka_carousels_enqueue_dependencies()
 {
-    // Add slick javascript to <head> - https://kenwheeler.github.io/slick/
+    $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
+
+    /**
+     * All Coop plugins will include their own copy of flickity, but
+     * only the first one actually enqued should be needed/registered.
+     * Assuming we keep versions in sync, this shouldn't be an issue.
+     */
+
+    /* flickity */
     wp_enqueue_script(
-        'coop-sitka-carousels-slick-js',
-        plugins_url('assets/slick/slick.min.js', __FILE__),
-        ['jquery'],
-        get_plugin_data(__FILE__, false, false)['Version'],
+        'flickity',
+        plugins_url('/assets/js/flickity.pkgd' . $suffix . '.js', __FILE__),
+        [
+            'jquery',
+        ],
+        '2.3.0',
         true
     );
 
-    // Add CSS for slick javascript library
-    wp_enqueue_style(
-        'coop-sitka-carousels-slick-css',
-        plugins_url('assets/slick/slick.css', __FILE__),
-        [],
-        get_plugin_data(__FILE__, false, false)['Version']
+    wp_enqueue_script(
+        'flickity-fade',
+        plugins_url('/assets/js/flickity-fade.js', __FILE__),
+        [
+            'flickity',
+        ],
+        '1.0.0',
+        true
     );
-    wp_enqueue_style(
-        'coop-sitka-carousels-slick-theme-css',
-        plugins_url('assets/slick/slick-theme.css', __FILE__),
+
+    wp_register_style(
+        'flickity',
+        plugins_url('/assets/css/flickity' . $suffix . '.css', __FILE__),
         [],
-        get_plugin_data(__FILE__, false, false)['Version']
+        '2.3.0'
+    );
+
+    wp_register_style(
+        'flickity-fade',
+        plugins_url('/assets/css/flickity-fade.css', __FILE__),
+        ['flickity'],
+        '1.0.0'
     );
 
     // Add CSS for carousel customization
     wp_enqueue_style(
         'coop-sitka-carousels-css',
         plugins_url('assets/css/coop-sitka-carousels.css', __FILE__),
-        [],
+        [
+            'flickity',
+            'flickity-fade'
+        ],
         get_plugin_data(__FILE__, false, false)['Version']
     );
 }
@@ -256,11 +279,8 @@ add_action('wpmu_new_blog', 'sitka_carousels_new_blog', 10, 6);
  */
 function sitka_carousels_shortcode($attr = [])
 {
-    // Variable created to ensure each carousel on a page has a unique class, variable is static so that it
-    // is available across multiple calls to this function
-    static $carousel_class = [];
-
-    $carousel_class[] = 'sitka-carousel-' . count($carousel_class);
+    // Jacket cover size
+    $jacket_size = 'medium';
 
     // Set transition type
     $transition = (!empty($attr['transition']) && in_array($attr['transition'], CAROUSEL_TRANSITION)) ?
@@ -289,6 +309,34 @@ function sitka_carousels_shortcode($attr = [])
     } else {
         $results = sitka_osrf_carousel($attr);
     }
+
+    /**
+     * Prep some data for output, format URLs, etc
+     */
+    foreach ($results as &$row) {
+        // If catalogue URL isn't stored, create it
+        if (empty($row['catalogue_url'])) {
+            $row['catalogue_url'] = $catalogue_prefix . sprintf(
+                "/eg/opac/record/%d?locg=%d",
+                $row['bibkey'],
+                $lib_locg,
+            );
+        } elseif (!(strpos($row['catalogue_url'], 'http') === 0)) {
+            // If catalogue URL doesn't have prefix, add it
+            $row['catalogue_url'] = $catalogue_prefix . $row['catalogue_url'];
+        }
+
+        // Build cover URL here so we can change size in the future if needed
+        $row['cover_url'] = $catalogue_prefix . '/opac/extras/ac/jacket/' . $jacket_size . '/r/' . $row['bibkey'];
+    }
+
+    $flickity_options = [
+        'autoPlay' => 4000,
+        'wrapAround' => true,
+        'pageDots' => false,
+        'fade' => $transition === 'fade' ? true : false,
+    ];
+    $flickity_options = json_encode($flickity_options);
 
     ob_start();
 
