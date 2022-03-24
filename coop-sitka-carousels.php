@@ -19,7 +19,7 @@ defined('ABSPATH') || die(-1);
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           1.5.3
+ * Version:           2.0.0
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -159,7 +159,8 @@ function coop_sitka_carousels_controls_form()
     $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
 
     if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list')) {
-        $run_message = "<br />The following new items were retrieved last run:<br /><pre>" . json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
+        $run_message = "<br />The following new items were retrieved last run:<br />"
+            . "<pre>" . json_encode($transient, JSON_PRETTY_PRINT) . "</pre>";
     }
 
     $option_last_checked = get_option(
@@ -334,7 +335,7 @@ function sitka_carousels_shortcode($attr = [])
         'autoPlay' => 4000,
         'wrapAround' => true,
         'pageDots' => false,
-        'fade' => $transition === 'fade' ? true : false,
+        'fade' => ($transition === 'fade'),
     ];
     $flickity_options = json_encode($flickity_options);
 
