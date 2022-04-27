@@ -1,8 +1,8 @@
 <?php
 
 /*
- * Script to be run via cron with `wp eval-script`
- * wp --url=libpress.libraries.coop --path=/path/to/wp/web/root eval-file /path/to/coop-sitka-carousels-update.php
+ * Script to be run via cron with via wp-cli
+ * wp sitka-carousel-runner --period=1
  *
  * Query Evergreen and add any items that have been added since the
  * last time the script was run.  Items are added to the sitka_carousels
@@ -37,34 +37,40 @@ class SitkaCarouselRunner
      */
     private $library;
 
+    private $libraries;
+
+    private $dateChecked;
+
+    private $skipSearch;
+
+    private $period;
+
     /**
      * SitkaCarouselRunner constructor.
      * @param array $targets
      * @param int $period
      */
-    public function __construct($targets = [], $period = 1, $skip_search = false)
+    public function __construct($targets = [], $period = 1, $skipSearch = false)
     {
-        global $wpdb;
+        $this->skipSearch = $skipSearch;
+        $this->period = $period;
 
-        // Initialize default mode switch
-        $sweep = true; // TRUE: sweep/all, FALSE: single or subset
-
-        if (count($targets) >= 1) {
-            $sweep = false;
-        }
+        // Initialize attribute containing list status
+        // $this->newListItems = array_fill_keys(Constants::TYPE, []);
+        $this->newListItems = [];
 
         // Variable for populated targets
-        $libraries = [];
+        $this->libraries = [];
 
-        if ($sweep) {
+        // Yesterday's date - We use yesterday's date so that in the off-chance a new
+        // item gets added during the update process it will be captured in the next update
+        $this->dateChecked = date('Y-m-d', mktime(0, 0, 0, date('m'), date('d') - 1, date('Y')));
+
+        if (empty($targets)) {
             print("Starting check for new items (network-wide)...");
 
-            // Yesterday's date - We use yesterday's date so that in the off-chance a new
-            // item gets added during the update process it will be captured in the next update
-            $date_checked = date('Y-m-d', mktime(0, 0, 0, date('m'), date('d') - 1, date('Y')));
-
             // Get all of the active libraries
-            $libraries = get_sites([
+            $this->libraries = get_sites([
                 'public' => 1,
                 'archived' => 0,
                 'deleted' => 0,
@@ -72,21 +78,23 @@ class SitkaCarouselRunner
         } else { // Single or small group triggered by ajax
             // Load the IDs as full WP_Site objects
             foreach ($targets as $target) {
-                $libraries[] = get_blog_details($target);
+                $this->libraries[] = get_blog_details($target);
             }
         }
+    }
+
+    public function getNewListItems()
+    {
+        global $wpdb;
 
         // Loop through each library updating its carousel data
-        foreach ($libraries as $library) {
+        foreach ($this->libraries as $library) {
             $this->library = $library;
 
             echo "Starting run for Blog ID {$this->library->blog_id}.\n";
 
             // Switch to the current library's WP instance
             switch_to_blog($this->library->blog_id);
-
-            // Initialize attribute containing list status
-            // $this->newListItems = array_fill_keys(Constants::TYPE, []);
 
             // Get the library's short name - if not set, skip
             $shortname = get_option('_coop_sitka_lib_shortname');
@@ -139,19 +147,19 @@ class SitkaCarouselRunner
             );
 
             // Default: last month ($period == 1)
-            $recheck_period = "P{$period}M";
+            $recheck_period = "P{$this->period}M";
 
             try {
                 $date = date_create($option_last_checked);
                 $date->sub(new \DateInterval($recheck_period));
-                $date_checked = $date->format('Y-m-d');
+                $this->dateChecked = $date->format('Y-m-d');
             } catch (\Exception $e) {
                 error_log("Something went wrong with date rechecking: " . $e->getMessage());
             }
 
             $new_bibkeys = [];
 
-            if (!$skip_search) {
+            if (!$this->skipSearch) {
                 // Query Evergreen for new items for each carousel type and add them to the database
                 foreach (Constants::TYPE as $carousel_type) {
                     $finished = false;
@@ -160,7 +168,7 @@ class SitkaCarouselRunner
 
                     // The query may return multiple pages of results. Increment the $offset by $count
                     // and retrieve the next page until no links are found
-                    while (! $finished) {
+                    while (!$finished) {
                         $carousel_results = $this->osrfHttpQuery([
                             'service' => 'open-ils.search',
                             'method' => 'open-ils.search.biblio.multiclass.query',
@@ -170,8 +178,8 @@ class SitkaCarouselRunner
                                     'limit' => $count,
                                     'searchSort' => 'create_date',
                                 ],
-                                'site(' . $this->library->short_name . ') create_date(' . $date_checked . ') '
-                                . Constants::SEARCH[$carousel_type],
+                                'site(' . $this->library->short_name . ') create_date(' . $this->dateChecked . ') '
+                                    . Constants::SEARCH[$carousel_type],
                                 0
                             ],
                         ]);
@@ -196,7 +204,7 @@ class SitkaCarouselRunner
                                         $wpdb->prefix . 'sitka_carousels',
                                         [
                                             'carousel_type' => $carousel_type,
-                                            'date_created' => $date_checked,
+                                            'date_created' => $this->dateChecked,
                                             'bibkey' => $bibkey,
                                         ]
                                     );
@@ -228,8 +236,8 @@ class SitkaCarouselRunner
             // All new bibkeys have been added to the db, now pull all
             // items without a date_active and check
             $inactive_items = $wpdb->get_results("SELECT bibkey, carousel_type
-                                                FROM {$wpdb->prefix}sitka_carousels
-                                                WHERE date_active IS NULL", ARRAY_A);
+                                                        FROM {$wpdb->prefix}sitka_carousels
+                                                        WHERE date_active IS NULL", ARRAY_A);
 
             echo "found " . count($inactive_items) . " total INACTIVE bibkeys to check\n";
             echo "search at location ids: " . implode(", ", $this->library->branches) . "\n";
@@ -335,10 +343,7 @@ class SitkaCarouselRunner
             $this->library = null;
             restore_current_blog();
         }
-    }
 
-    public function getNewListItems()
-    {
         return $this->newListItems;
     }
 

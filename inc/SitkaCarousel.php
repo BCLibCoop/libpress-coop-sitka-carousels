@@ -1,28 +1,28 @@
 <?php
 
-// phpcs:disable PSR1.Methods.CamelCapsMethodName.NotCamelCaps
-
 namespace BCLibCoop\SitkaCarousel;
 
 class SitkaCarousel
 {
+    private const DB_VER = '0.1.0';
+
     public function __construct()
     {
         // Register sitka_carousel shortcode
-        add_shortcode('sitka_carousel', [&$this, 'sitka_carousels_shortcode']);
+        add_shortcode('sitka_carousel', [&$this, 'shortcode']);
 
-        add_action('wp_enqueue_scripts', [&$this, 'coop_sitka_carousels_enqueue_dependencies']);
-        add_action('admin_enqueue_scripts', [&$this, 'coop_sitka_carousels_enqueue_admin_dependencies']);
-        add_action('add_meta_boxes', [&$this, 'coop_sitka_carousels_meta_box_add'], 10, 2);
-        add_action('admin_menu', [&$this, 'coop_sitka_carousels_controls_admin'], 20);
-        add_action('wpmu_new_blog', [&$this, 'sitka_carousels_new_blog'], 10, 6);
-        add_action('wp_ajax_coop_sitka_carousels_control_callback', [&$this, 'coop_sitka_carousels_control_callback']);
-        add_action('cli_init', [&$this, 'coop_sitka_carousels_register_cli_cmd']);
-        add_action('coop_sitka_carousels_trigger', [&$this, 'coop_sitka_carousels_limited_run'], 10, 3);
+        add_action('wp_enqueue_scripts', [&$this, 'frontendDeps']);
+        add_action('admin_enqueue_scripts', [&$this, 'adminDeps']);
+        add_action('add_meta_boxes', [&$this, 'metabox'], 10, 2);
+        add_action('admin_menu', [&$this, 'adminMenu'], 20);
+        add_action('wpmu_new_blog', [&$this, 'newBlog'], 10, 6);
+        add_action('wp_ajax_coop_sitka_carousels_control_callback', [&$this, 'ajaxUpdate']);
+        add_action('cli_init', [&$this, 'registerWPCLI']);
+        add_action('coop_sitka_carousels_trigger', [&$this, 'limitedRunner'], 10, 3);
     }
 
     // Enqueue scripts and styles
-    public function coop_sitka_carousels_enqueue_dependencies()
+    public function frontendDeps()
     {
         $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
 
@@ -79,7 +79,7 @@ class SitkaCarousel
         );
     }
 
-    public function coop_sitka_carousels_enqueue_admin_dependencies($hook)
+    public function adminDeps($hook)
     {
         if ($hook === 'site-manager_page_sitka-carousel-controls') {
             wp_enqueue_script(
@@ -96,19 +96,19 @@ class SitkaCarousel
     }
 
     // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
-    public function coop_sitka_carousels_meta_box_add()
+    public function metabox()
     {
         add_meta_box(
             'coop_sitka_carousels',
             'Sitka Carousel Placement',
-            [&$this, 'sitka_carousels_inner_custom_box'],
+            [&$this, 'showMetabox'],
             'highlight',
             'side',
             'high'
         );
     }
 
-    public function coop_sitka_carousels_controls_admin()
+    public function adminMenu()
     {
         add_submenu_page(
             'site-manager',
@@ -116,11 +116,11 @@ class SitkaCarousel
             'Sitka Carousel Controls',
             'manage_options',
             'sitka-carousel-controls',
-            [&$this, 'coop_sitka_carousels_controls_form']
+            [&$this, 'adminPage']
         );
     }
 
-    public function coop_sitka_carousels_controls_form()
+    public function adminPage()
     {
         // Display in form:
         // Last checked option date
@@ -165,7 +165,7 @@ class SitkaCarousel
     /*
     * Callback function for site activation - checks for network activation
     */
-    public static function sitka_carousels_activate($network_wide)
+    public static function activate($network_wide)
     {
         if (is_multisite() && $network_wide) {
             $blogs = get_sites([
@@ -176,28 +176,27 @@ class SitkaCarousel
 
             foreach ($blogs as $blog) {
                 switch_to_blog($blog->blog_id);
-                self::sitka_carousels_install();
+                self::install();
                 restore_current_blog();
             }
         } else {
             // Only installing on one site
-            self::sitka_carousels_install();
+            self::install();
         }
     }
 
     /*
     * Callback function for single site install
     */
-    public static function sitka_carousels_install()
+    public static function install()
     {
         global $wpdb;
-        global $sitka_carousels_db_version;
 
         // Name of the database table used by this plugin
         $table_name = $wpdb->prefix . 'sitka_carousels';
 
-        // Check to see if the table exists
-        if ($wpdb->get_var("SHOW TABLES LIKE '$table_name'") !== $table_name) {
+        // Check to see if we need to do a DB upgrade
+        if (get_option('sitka_carousels_db_version') !== self::DB_VER) {
             // Table doesn't exist so create it
             require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -232,18 +231,18 @@ class SitkaCarousel
 
             dbDelta($sql);
 
-            add_option('sitka_carousels_db_version', $sitka_carousels_db_version);
+            add_option('sitka_carousels_db_version', self::DB_VER);
         }
     }
 
     /*
     * Callback function for when a new blog is added to a network install
     */
-    public function sitka_carousels_new_blog($blog_id, $user_id, $domain, $path, $site_id, $meta)
+    public function newBlog($blog_id, $user_id, $domain, $path, $site_id, $meta)
     {
         if (is_plugin_active_for_network(plugin_basename(COOP_SITKA_CAROUSEL_PLUGINFILE))) {
             switch_to_blog($blog_id);
-            self::sitka_carousels_install();
+            self::install();
             restore_current_blog();
         }
     }
@@ -251,7 +250,7 @@ class SitkaCarousel
     /*
     * Callback function for generating sitka_carousel shortag
     */
-    public function sitka_carousels_shortcode($attr = [])
+    public function shortcode($attr = [])
     {
         // Jacket cover size
         $jacket_size = 'medium';
@@ -279,9 +278,9 @@ class SitkaCarousel
         // In the future, this will look for a "carousel ID" type attribute in the
         // shortcode and switch retrieval methods
         if (true) {
-            $results = $this->sitka_database_carousel($attr);
+            $results = $this->getFromDb($attr);
         } else {
-            $results = $this->sitka_osrf_carousel($attr);
+            $results = $this->getFromOSRF($attr);
         }
 
         /**
@@ -323,7 +322,7 @@ class SitkaCarousel
      * Retrieve titles from the database that have been previously searched for and
      * stored
      */
-    public function sitka_database_carousel($attr = [])
+    public function getFromDb($attr = [])
     {
         global $wpdb;
 
@@ -373,7 +372,7 @@ class SitkaCarousel
      * Retrieve a specific carousel ID from Sitka, caching in a transient for a
      * reasonable amount of time
      */
-    public function sitka_osrf_carousel($attr = [])
+    public function getFromOSRF($attr = [])
     {
         return [];
     }
@@ -382,13 +381,13 @@ class SitkaCarousel
     * Custom Meta Box on Highlights admin page to provide instructions on how to add
     * a Sitka Carousel shortcode.
     */
-    public function sitka_carousels_inner_custom_box()
+    public function showMetabox()
     {
         include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/metabox.php';
     }
 
     // Action callback for single or groups runs called by AJAX
-    public function coop_sitka_carousels_control_callback()
+    public function ajaxUpdate()
     {
         if (check_ajax_referer('coop-sitka-carousels-limit-run', false, false) === false) {
             wp_send_json_error();
@@ -415,18 +414,26 @@ class SitkaCarousel
     }
 
     // Custom CLI commands
-    public function coop_sitka_carousels_register_cli_cmd()
+    public function registerWPCLI()
     {
-        \WP_CLI::add_command('sitka-carousel-runner', [&$this, 'coop_sitka_carousels_limited_run_cmd']);
+        \WP_CLI::add_command('sitka-carousel-runner', [&$this, 'limitedRunnerCmd']);
     }
 
-
     /**
-     * WP-CLI Command wrapper for coop_sitka_carousels_limited_run
-     * @param array $args
-     * @param array $assoc_args
+     * Runs the Sitka Carousel updater, either for all sites, or the specified target.
+     *
+     * ## OPTIONS
+     *
+     * [--skip-search]
+     * : Skip the search for new items, only attempt to look up metadata for already retrieved bibkeys
+     *
+     * [--targets=<target>]
+     * : A comma seperated list of blog IDs to limit to. All when blank.
+     *
+     * [--period=<period>]
+     * : The number of months previous to look back. Default 1.
      */
-    public function coop_sitka_carousels_limited_run_cmd($args, $assoc_args)
+    public function limitedRunnerCmd($args, $assoc_args)
     {
         // Get arguments - no positional $args
         $parsed_args = wp_parse_args(
@@ -439,16 +446,18 @@ class SitkaCarousel
         );
 
         // Explode into array, no double quotes.
-        if (!empty($parsed_args['targets'])) {
+        if (!empty($parsed_args['targets']) && !is_array($parsed_args['targets'])) {
             $parsed_args['targets'] = explode(',', str_replace('"', "", $parsed_args['targets']));
         } else {
             $parsed_args['targets'] = [];
         }
 
-        \WP_CLI::debug("ARGS " . print_r($parsed_args, true));
+        // \WP_CLI::debug("ARGS " . print_r($args, true));
+        // \WP_CLI::debug("ASSOC ARGS " . print_r($assoc_args, true));
+        \WP_CLI::debug("PARSED ARGS " . print_r($parsed_args, true));
 
         try {
-            $CarouselRunner = $this->coop_sitka_carousels_limited_run(
+            $CarouselRunner = new SitkaCarouselRunner(
                 $parsed_args['targets'],
                 $parsed_args['period'],
                 $parsed_args['skip-search']
@@ -470,8 +479,10 @@ class SitkaCarousel
      * @param int $period
      * @return SitkaCarouselRunner
      */
-    public function coop_sitka_carousels_limited_run($targets = [], $period = 1, $skip_search = false)
+    public static function limitedRunner($targets = [], $period = 1, $skip_search = false)
     {
-        return new SitkaCarouselRunner($targets, $period, $skip_search);
+        $CarouselRunner = new SitkaCarouselRunner($targets, $period, $skip_search);
+
+        return $CarouselRunner->getNewListItems();
     }
 }

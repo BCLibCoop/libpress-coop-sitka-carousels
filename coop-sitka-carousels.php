@@ -41,12 +41,9 @@ if (file_exists($composer = __DIR__ . '/vendor/autoload.php')) {
 
 define('COOP_SITKA_CAROUSEL_PLUGINFILE', __FILE__);
 
-global $sitka_carousels_db_version;
-$sitka_carousels_db_version = '0.1.0';
-
 // Hook called when plugin is activated, called function checks for
 // network activation on a multisite install
-register_activation_hook(__FILE__, [__NAMESPACE__ . '\SitkaCarousel', 'sitka_carousels_activate']);
+register_activation_hook(__FILE__, [SitkaCarousel::class, 'activate']);
 
 add_action('plugins_loaded', function () {
     new SitkaCarousel();
