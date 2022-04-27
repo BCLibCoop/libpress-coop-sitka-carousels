@@ -1,55 +1,64 @@
-.slick-prev::before,
-.slick-next::before {
-  color: #000;
-}
-
 .sitka-carousel-container {
-  width: 205px;
   margin: 0px auto;
   text-align: center;
 }
 
-/* Description is hidden for now */
-.sitka-description {
+/* Hide extra slides while loading */
+.sitka-carousel .carousel-item {
   display: none;
 }
 
-.sitka-carousel-image {
-  width: 150px;
-  height: 225px;
-  z-index: 10;
-  position: absolute;
-  /* top: 0px; */
-  margin: 0 27.5px;
+.sitka-carousel .carousel-item:first-child {
+  display: block;
 }
 
-.sitka-carousel-image-default {
+.sitka-carousel.flickity-enabled .carousel-item {
+  display: block;
+}
+
+/* Button Styling */
+.sitka-carousel .flickity-prev-next-button {
+  color: white;
+  background-color: #333;
+  width: 33px;
+  height: 33px;
+}
+
+.sitka-carousel .flickity-prev-next-button:hover {
+  background-color: #666;
+}
+
+.sitka-carousel .carousel-item {
+  margin: 0 auto;
+  width: 100%;
+}
+
+.sitka-carousel .carousel-item .carousel-item-image {
+  width: 150px !important;
+  height: 225px !important;
+  z-index: 10;
+  position: absolute;
+}
+
+.sitka-carousel .carousel-item .carousel-item-image-default {
   z-index: 5;
   position: relative;
 }
 
-.sitka-info {
-  display: inline-block;
+.sitka-carousel .carousel-item .carousel-item-info {
+  /* display: inline-block; */
 }
 
-.sitka-title {
+.sitka-carousel .carousel-item .carousel-item-info .carousel-item-title {
   font-size: 0.8em;
-  font-family: "PT Sans", sans-serif;
 }
 
-.sitka-author {
+.sitka-carousel .carousel-item .carousel-item-info .carousel-item-author {
   font-size: 0.7em;
   font-style: italic;
 }
 
-/* Hide extra slides while loading */
-.sitka-carousel .sitka-item {
+/* Description is hidden for now */
+.sitka-carousel .carousel-item .carousel-item-description {
   display: none;
-}
-
-.sitka-carousel .sitka-item:first-child {
-  display: block;
-}
-.sitka-carousel.slick-initialized .sitka-item {
-  display: block;
 }
