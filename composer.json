@@ -14,9 +14,9 @@
             "email": "ben.holt@bc.libraries.coop"
         },
         {
-          "name": "Jonathan Schatz",
-          "email": "jonathan.schatz@bc.libraries.coop"
-      },
+            "name": "Jonathan Schatz",
+            "email": "jonathan.schatz@bc.libraries.coop"
+        },
         {
             "name": "Sam Edwards",
             "email": "sam.edwards@bc.libraries.coop"
@@ -25,5 +25,15 @@
     "require": {
         "php": ">=7.0",
         "composer/installers": "^1.0 || ^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "BCLibCoop\\SitkaCarousel\\": "inc/"
+        }
+    },
+    "config": {
+        "allow-plugins": {
+            "composer/installers": true
+        }
     }
 }

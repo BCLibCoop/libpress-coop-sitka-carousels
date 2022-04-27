@@ -22,6 +22,8 @@
  * to the db.
  */
 
+namespace BCLibCoop\SitkaCarousel;
+
 class SitkaCarouselRunner
 {
     /**
@@ -84,7 +86,7 @@ class SitkaCarouselRunner
             switch_to_blog($this->library->blog_id);
 
             // Initialize attribute containing list status
-            // $this->newListItems = array_fill_keys(CAROUSEL_TYPE, []);
+            // $this->newListItems = array_fill_keys(Constants::TYPE, []);
 
             // Get the library's short name - if not set, skip
             $shortname = get_option('_coop_sitka_lib_shortname');
@@ -141,9 +143,9 @@ class SitkaCarouselRunner
 
             try {
                 $date = date_create($option_last_checked);
-                $date->sub(new DateInterval($recheck_period));
+                $date->sub(new \DateInterval($recheck_period));
                 $date_checked = $date->format('Y-m-d');
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 error_log("Something went wrong with date rechecking: " . $e->getMessage());
             }
 
@@ -151,7 +153,7 @@ class SitkaCarouselRunner
 
             if (!$skip_search) {
                 // Query Evergreen for new items for each carousel type and add them to the database
-                foreach (CAROUSEL_TYPE as $carousel_type) {
+                foreach (Constants::TYPE as $carousel_type) {
                     $finished = false;
                     $offset = 0;
                     $count = 50;
@@ -169,7 +171,7 @@ class SitkaCarouselRunner
                                     'searchSort' => 'create_date',
                                 ],
                                 'site(' . $this->library->short_name . ') create_date(' . $date_checked . ') '
-                                . CAROUSEL_SEARCH[$carousel_type],
+                                . Constants::SEARCH[$carousel_type],
                                 0
                             ],
                         ]);
@@ -350,7 +352,7 @@ class SitkaCarouselRunner
     private function osrfHttpQueryBuilder($request_data)
     {
         $request = [
-            'timeout' => CAROUSEL_QUERY_TIMEOUT,
+            'timeout' => Constants::QUERY_TIMEOUT,
             'headers' => ['X-OpenSRF-service' => $request_data['service']],
         ];
 
@@ -382,13 +384,13 @@ class SitkaCarouselRunner
         // Build the request
         $query = $this->osrfHttpQueryBuilder($request_data);
 
-        $catalogue_url = CAROUSEL_EG_URL;
+        $catalogue_url = Constants::EG_URL;
 
         $cat_suffix = array_filter(explode('.', $this->library->cat_url));
         $cat_suffix = end($cat_suffix);
 
-        if (!empty($cat_suffix) && !in_array($cat_suffix, CAROUSEL_PROD_LIBS)) {
-            $catalogue_url = 'https://' . $cat_suffix . CAROUSEL_CATALOGUE_SUFFIX;
+        if (!empty($cat_suffix) && !in_array($cat_suffix, Constants::PROD_LIBS)) {
+            $catalogue_url = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
         }
 
         // Post to the translator service
