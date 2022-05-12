@@ -33,6 +33,10 @@
   width: 100%;
 }
 
+.sitka-carousel .carousel-item .carousel-item-cover {
+  display: inline-block;
+}
+
 .sitka-carousel .carousel-item .carousel-item-image {
   width: 150px !important;
   height: 225px !important;
