@@ -109,13 +109,13 @@ class SitkaCarouselRunner
             $this->library->branches = [];
 
             // Retrieve this library's meta data from EG
-            $lib_meta = $this->osrfHttpQuery([
+            $lib_meta = (new OSRFQuery([
                 'service' => 'open-ils.actor',
                 'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
                 'params' => [
                     $this->library->short_name,
                 ],
-            ]);
+            ], $this->library->cat_url))->getResult();
 
             if (!$lib_meta) {
                 continue;
@@ -126,13 +126,13 @@ class SitkaCarouselRunner
 
             // If this is a library system/network, collect all children
             // so that we can look for copies at all branches later
-            $lib_tree = $this->osrfHttpQuery([
+            $lib_tree = (new OSRFQuery([
                 'service' => 'open-ils.actor',
                 'method' => 'open-ils.actor.org_tree.descendants.retrieve',
                 'params' => [
                     $this->library->sitka_id,
                 ],
-            ]);
+            ], $this->library->cat_url))->getResult();
 
             if (!empty($lib_tree) && !empty($lib_tree[0])) {
                 foreach ($lib_tree[0] as $lib_child) {
@@ -169,7 +169,7 @@ class SitkaCarouselRunner
                     // The query may return multiple pages of results. Increment the $offset by $count
                     // and retrieve the next page until no links are found
                     while (!$finished) {
-                        $carousel_results = $this->osrfHttpQuery([
+                        $carousel_results = (new OSRFQuery([
                             'service' => 'open-ils.search',
                             'method' => 'open-ils.search.biblio.multiclass.query',
                             'params' => [
@@ -182,7 +182,7 @@ class SitkaCarouselRunner
                                     . Constants::SEARCH[$carousel_type],
                                 0
                             ],
-                        ]);
+                        ], $this->library->cat_url))->getResult();
 
                         // Get the ID keys if we got any results, else an empty array to fall through
                         $bibkeys = $carousel_results ? array_column($carousel_results->ids, 0) : [];
@@ -244,7 +244,7 @@ class SitkaCarouselRunner
 
             foreach ($inactive_items as $item) {
                 // Query Evergreen to get the copy id and active date
-                $item_copy_data = $this->osrfHttpQuery([
+                $item_copy_data = (new OSRFQuery([
                     'service' => 'open-ils.cat',
                     'method' => 'open-ils.cat.asset.copy_tree.retrieve',
                     'params' => [
@@ -252,7 +252,7 @@ class SitkaCarouselRunner
                         $item['bibkey'],
                         $this->library->branches,
                     ],
-                ]);
+                ], $this->library->cat_url))->getResult();
 
                 // Drill down to the copy data if we got a response
                 $copies = $item_copy_data ? $item_copy_data[0]->__p[0] : [];
@@ -276,13 +276,13 @@ class SitkaCarouselRunner
                     // The current bibkey has a date_active, gather the necessary info
                     if (!empty($item['date_active'])) {
                         // With the copy_id we can now query EG for the remaining info
-                        $item_data = $this->osrfHttpQuery([
+                        $item_data = (new OSRFQuery([
                             'service' => 'open-ils.search',
                             'method' => 'open-ils.search.biblio.mods_from_copy',
                             'params' => [
                                 $item['copy_id'],
                             ],
-                        ]);
+                        ], $this->library->cat_url))->getResult();
 
                         if (!empty($item_data)) {
                             $item['title'] = $item_data[0];
@@ -345,107 +345,5 @@ class SitkaCarouselRunner
         }
 
         return $this->newListItems;
-    }
-
-    /**
-     * Helper function to generate the WP_Http::request() args for an OSRF
-     * request
-     *
-     * @param array $query_data
-     * @return array
-     */
-    private function osrfHttpQueryBuilder($request_data)
-    {
-        $request = [
-            'timeout' => Constants::QUERY_TIMEOUT,
-            'headers' => ['X-OpenSRF-service' => $request_data['service']],
-        ];
-
-        $osrf_msg = [];
-
-        $osrf_msg[] = [
-            '__c' => 'osrfMessage',
-            '__p' => [
-                'threadTrace' => '0',
-                'locale' => 'en-US',
-                'type' => 'REQUEST',
-                'payload' => [
-                    '__c' => 'osrfMethod',
-                    '__p' => [
-                        'method' => $request_data['method'],
-                        'params' => $request_data['params'],
-                    ],
-                ],
-            ],
-        ];
-
-        $request['body'] = 'osrf-msg=' . json_encode($osrf_msg);
-
-        return $request;
-    }
-
-    private function osrfHttpQuery($request_data)
-    {
-        // Build the request
-        $query = $this->osrfHttpQueryBuilder($request_data);
-
-        $catalogue_url = Constants::EG_URL;
-
-        $cat_suffix = array_filter(explode('.', $this->library->cat_url));
-        $cat_suffix = end($cat_suffix);
-
-        if (!empty($cat_suffix) && !in_array($cat_suffix, Constants::PROD_LIBS)) {
-            $catalogue_url = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
-        }
-
-        // Post to the translator service
-        $eg_query_result = wp_remote_post(
-            $catalogue_url . '/osrf-http-translator',
-            $query
-        );
-
-        // If the request completely errored, return null
-        if (wp_remote_retrieve_response_code($eg_query_result) !== 200) {
-            return null;
-        }
-
-        /**
-         * Do some best-effort checking of the returned response. The translator
-         * service seems to not be great about returning error status codes when then
-         * are no results or otherwise an error, and the nexting level of the data we
-         * want is inconsistent, so we do our best to check for errors and return data
-         * at a soemwhat useful point
-         */
-        if ($json_result = json_decode(wp_remote_retrieve_body($eg_query_result))) {
-            // Check for status message
-            foreach ($json_result as $osrf_message) {
-                if (isset($osrf_message->__p) && $osrf_message->__p->type === 'STATUS') {
-                    $status_code = $osrf_message->__p->payload->__p->statusCode;
-
-                    // If the internal status code isn't in the 1xx or 2xx range, return null
-                    if ($status_code >= 300) {
-                        return null;
-                    }
-
-                    break;
-                }
-            }
-
-            // Check for results message
-            foreach ($json_result as $osrf_message) {
-                if (isset($osrf_message->__p) && $osrf_message->__p->type === 'RESULT') {
-                    $content = $osrf_message->__p->payload->__p->content;
-
-                    // Status codes don't seem to indicate a true bad response,
-                    // stacktrace seems to be a somewhat reliable way of finding an error
-                    if (isset($content->stacktrace)) {
-                        return null;
-                    }
-
-                    // Sometimes nested one more level, sometimes not.
-                    return $content->__p ?? $content;
-                }
-            }
-        }
     }
 }
