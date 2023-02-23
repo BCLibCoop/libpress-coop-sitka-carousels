@@ -5,7 +5,7 @@
                 <a href="<?= $row['catalogue_url'] ?>">
                     <div class="carousel-item-cover">
                         <img alt="" src="<?= $row['cover_url'] ?>" class="carousel-item-image">
-                        <img alt="" src="<?= $no_cover ?>" class="carousel-item-image carousel-item-image-default">
+                        <img alt="" src="<?= $attr['no_cover'] ?>" class="carousel-item-image carousel-item-image-default">
                     </div>
                     <div class="carousel-item-info">
                         <span class="carousel-item-title"><?= $row['title'] ?></span>

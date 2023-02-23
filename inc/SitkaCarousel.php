@@ -252,12 +252,42 @@ class SitkaCarousel
     */
     public function shortcode($attr = [])
     {
-        // Jacket cover size
-        $jacket_size = 'medium';
+        $attr = shortcode_atts(
+            [
+                'transition' => Constants::TRANSITION[0],
+                'type' => Constants::TYPE[0],
+                'carousel_id' => false,
+            ],
+            array_change_key_case((array) $attr, CASE_LOWER),
+            'sitka_carousel'
+        );
 
-        // Set transition type
-        $transition = (!empty($attr['transition']) && in_array($attr['transition'], Constants::TRANSITION)) ?
-            $attr['transition'] : Constants::TRANSITION[0];
+        // Validate atts
+        $attr = filter_var_array((array) $attr, [
+            'transition' => [
+                'filter' => FILTER_VALIDATE_REGEXP,
+                'options' => [
+                    'default' => Constants::TRANSITION[0],
+                    'flags'   => FILTER_REQUIRE_SCALAR,
+                    'regexp' => '/^(' . implode('|', Constants::TRANSITION) . ')$/'
+                ],
+            ],
+            'type' => [
+                'filter' => FILTER_VALIDATE_REGEXP,
+                'options' => [
+                    'default' => Constants::TYPE[0],
+                    'flags'   => FILTER_REQUIRE_SCALAR,
+                    'regexp' => '/^(' . implode('|', Constants::TYPE) . ')$/'
+                ],
+            ],
+            'carousel_id' => FILTER_VALIDATE_INT,
+        ]);
+
+        // Not allowing these to be set from the shortcode for now
+        $attr['size'] = 'medium';
+        $attr['no_cover'] = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
+
+        // error_log(var_export($attr, true));
 
         // Get the library's catalogue link
         $current_domain = $GLOBALS['current_blog']->domain;
@@ -273,11 +303,9 @@ class SitkaCarousel
                 . Constants::CATALOGUE_SUFFIX;
         }
 
-        $no_cover = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
-
-        // In the future, this will look for a "carousel ID" type attribute in the
-        // shortcode and switch retrieval methods
-        if (true) {
+        // If we have a carousel ID, make the call to Sitka, otherwise, use info
+        // from the local DB
+        if (empty($attr['carousel_id'])) {
             $results = $this->getFromDb($attr);
         } else {
             $results = $this->getFromOSRF($attr);
@@ -300,14 +328,14 @@ class SitkaCarousel
             }
 
             // Build cover URL here so we can change size in the future if needed
-            $row['cover_url'] = $catalogue_prefix . '/opac/extras/ac/jacket/' . $jacket_size . '/r/' . $row['bibkey'];
+            $row['cover_url'] = $catalogue_prefix . '/opac/extras/ac/jacket/' . $attr['size'] . '/r/' . $row['bibkey'];
         }
 
         $flickity_options = [
             'autoPlay' => 4000,
             'wrapAround' => true,
             'pageDots' => false,
-            'fade' => ($transition === 'fade'),
+            'fade' => ($attr['transition'] === 'fade'),
         ];
         $flickity_options = json_encode($flickity_options);
 
@@ -322,25 +350,21 @@ class SitkaCarousel
      * Retrieve titles from the database that have been previously searched for and
      * stored
      */
-    public function getFromDb($attr = [])
+    public function getFromDb($attr)
     {
         global $wpdb;
 
-        // Set carousel type
-        $type = (!empty($attr['type']) && in_array($attr['type'], Constants::TYPE)) ?
-            $attr['type'] : Constants::TYPE[0];
-
         $table_name = "{$wpdb->prefix}sitka_carousels";
 
-        // Get the number of new items in the last month, will be used to decide whether to show items from last month or
-        // up to Constants::MIN items, which would include items older than 1 month
+        // Get the number of new items in the last month, will be used to decide whether to show items from last month
+        // or up to Constants::MIN items, which would include items older than 1 month
         $new_items = $wpdb->get_var(
             $wpdb->prepare(
                 "SELECT COUNT(*)
                 FROM $table_name
                 WHERE carousel_type = %s
                 AND date_active > (NOW() - INTERVAL 1 MONTH)",
-                $type
+                $attr['type']
             )
         );
 
@@ -356,13 +380,13 @@ class SitkaCarousel
             // Use items added within last month
             $sql = $wpdb->prepare($query .
                                 "AND date_active > (NOW() - INTERVAL 1 MONTH)
-                            ORDER BY date_active DESC", $type);
+                            ORDER BY date_active DESC", $attr['type']);
         } else {
             // Use most recent Constants::MIN items
             $sql = $wpdb->prepare($query .
                                 "AND date_active IS NOT NULL
                             ORDER BY date_active DESC
-                                LIMIT %d", [$type, Constants::MIN]);
+                                LIMIT %d", [$attr['type'], Constants::MIN]);
         }
 
         return $wpdb->get_results($sql, ARRAY_A);
@@ -372,8 +396,28 @@ class SitkaCarousel
      * Retrieve a specific carousel ID from Sitka, caching in a transient for a
      * reasonable amount of time
      */
-    public function getFromOSRF($attr = [])
+    public function getFromOSRF($attr)
     {
+        $shortname = get_option('_coop_sitka_lib_shortname', 'NA');
+
+        $lib_meta = (new OSRFQuery([
+            'service' => 'open-ils.actor',
+            'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
+            'params' => [
+                $shortname,
+            ],
+        ]))->getResult();
+
+        $carousel = (new OSRFQuery([
+                'service' => 'open-ils.actor',
+                'method' => 'open-ils.actor.carousel.retrieve_by_org',
+                'params' => [
+                    $lib_meta[3],
+                ],
+        ]))->getResult();
+
+        error_log(var_export($carousel, true));
+
         return [];
     }
 
