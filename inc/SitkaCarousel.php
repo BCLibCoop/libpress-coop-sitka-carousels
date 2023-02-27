@@ -5,6 +5,7 @@ namespace BCLibCoop\SitkaCarousel;
 class SitkaCarousel
 {
     private const DB_VER = '0.1.0';
+    private $transient_key = 'sitka_carousel';
 
     public function __construct()
     {
@@ -398,27 +399,43 @@ class SitkaCarousel
      */
     public function getFromOSRF($attr)
     {
-        $shortname = get_option('_coop_sitka_lib_shortname', 'NA');
+        $bibs = get_transient("{$this->transient_key}_{$attr['carousel_id']}");
 
-        $lib_meta = (new OSRFQuery([
-            'service' => 'open-ils.actor',
-            'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
-            'params' => [
-                $shortname,
-            ],
-        ]))->getResult();
+        if ($bibs === false) {
+            $carousel = (new OSRFQuery([
+                    'service' => 'open-ils.actor',
+                    'method' => 'open-ils.actor.carousel.get_contents',
+                    'params' => [
+                        $attr['carousel_id']
+                    ],
+            ]))->getResult();
 
-        $carousel = (new OSRFQuery([
-                'service' => 'open-ils.actor',
-                'method' => 'open-ils.actor.carousel.retrieve_by_org',
-                'params' => [
-                    $lib_meta[3],
-                ],
-        ]))->getResult();
+            if (!empty($carousel) && !empty($carousel->bibs)) {
+                foreach ($carousel->bibs as $bib) {
+                    $bibs[] = [
+                        'bibkey' => $bib->id,
+                        'title' => $bib->title ?? '',
+                        'author' => $bib->author ?? '',
+                    ];
+                }
 
-        error_log(var_export($carousel, true));
+                set_transient(
+                    "{$this->transient_key}_{$attr['carousel_id']}",
+                    $bibs,
+                    MINUTE_IN_SECONDS * 15
+                );
+            } else {
+                // If our API call was successful, but we got no results, cache
+                // that for 1 minute so each page load doesn't make a new request
+                set_transient(
+                    "{$this->transient_key}_{$attr['carousel_id']}",
+                    [],
+                    MINUTE_IN_SECONDS
+                );
+            }
+        }
 
-        return [];
+        return array_filter((array) $bibs);
     }
 
     /*
