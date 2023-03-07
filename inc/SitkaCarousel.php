@@ -10,16 +10,16 @@ class SitkaCarousel
     public function __construct()
     {
         // Register sitka_carousel shortcode
-        add_shortcode('sitka_carousel', [&$this, 'shortcode']);
+        add_shortcode('sitka_carousel', [$this, 'shortcode']);
 
-        add_action('wp_enqueue_scripts', [&$this, 'frontendDeps']);
-        add_action('admin_enqueue_scripts', [&$this, 'adminDeps']);
-        add_action('add_meta_boxes', [&$this, 'metabox'], 10, 2);
-        add_action('admin_menu', [&$this, 'adminMenu'], 20);
-        add_action('wpmu_new_blog', [&$this, 'newBlog'], 10, 6);
-        add_action('wp_ajax_coop_sitka_carousels_control_callback', [&$this, 'ajaxUpdate']);
-        add_action('cli_init', [&$this, 'registerWPCLI']);
-        add_action('coop_sitka_carousels_trigger', [&$this, 'limitedRunner'], 10, 3);
+        add_action('wp_enqueue_scripts', [$this, 'frontendDeps']);
+        add_action('admin_enqueue_scripts', [$this, 'adminDeps']);
+        add_action('add_meta_boxes', [$this, 'metabox'], 10, 2);
+        add_action('admin_menu', [$this, 'adminMenu'], 20);
+        add_action('wpmu_new_blog', [$this, 'newBlog'], 10, 6);
+        add_action('wp_ajax_coop_sitka_carousels_control_callback', [$this, 'ajaxUpdate']);
+        add_action('cli_init', [$this, 'registerWPCLI']);
+        add_action('coop_sitka_carousels_trigger', [$this, 'limitedRunner'], 10, 3);
     }
 
     // Enqueue scripts and styles
@@ -102,7 +102,7 @@ class SitkaCarousel
         add_meta_box(
             'coop_sitka_carousels',
             'Sitka Carousel Placement',
-            [&$this, 'showMetabox'],
+            [$this, 'showMetabox'],
             'highlight',
             'side',
             'high'
@@ -117,7 +117,7 @@ class SitkaCarousel
             'Sitka Carousel Controls',
             'manage_options',
             'sitka-carousel-controls',
-            [&$this, 'adminPage']
+            [$this, 'adminPage']
         );
     }
 
@@ -288,8 +288,6 @@ class SitkaCarousel
         $attr['size'] = 'medium';
         $attr['no_cover'] = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
 
-        // error_log(var_export($attr, true));
-
         // Get the library's catalogue link
         $current_domain = $GLOBALS['current_blog']->domain;
         // Assume that our main/network blog will always have the subdomain 'libpress'
@@ -315,21 +313,22 @@ class SitkaCarousel
         /**
          * Prep some data for output, format URLs, etc
          */
-        foreach ($results as &$row) {
-            // If catalogue URL isn't stored, create it
-            if (empty($row['catalogue_url'])) {
-                $row['catalogue_url'] = $catalogue_prefix . sprintf(
-                    "/eg/opac/record/%d?locg=%d",
-                    $row['bibkey'],
-                    $lib_locg,
-                );
-            } elseif (!(strpos($row['catalogue_url'], 'http') === 0)) {
-                // If catalogue URL doesn't have prefix, add it
-                $row['catalogue_url'] = $catalogue_prefix . $row['catalogue_url'];
-            }
+        foreach ($results as &$row_format) {
+            // Build catalogue URL
+            $row_format['catalogue_url'] = sprintf(
+                "%s/eg/opac/record/%d?locg=%d",
+                $catalogue_prefix,
+                $row_format['bibkey'],
+                $lib_locg,
+            );
 
             // Build cover URL here so we can change size in the future if needed
-            $row['cover_url'] = $catalogue_prefix . '/opac/extras/ac/jacket/' . $attr['size'] . '/r/' . $row['bibkey'];
+            $row_format['cover_url'] = sprintf(
+                '%s/opac/extras/ac/jacket/%s/r/%d',
+                $catalogue_prefix,
+                $attr['size'],
+                $row_format['bibkey']
+            );
         }
 
         $flickity_options = [
@@ -370,12 +369,10 @@ class SitkaCarousel
         );
 
         $query = "SELECT bibkey,
-                        catalogue_url,
                         title,
-                        author,
-                        `description`
-                        FROM $table_name
-                        WHERE carousel_type = %s ";
+                        author
+                    FROM $table_name
+                    WHERE carousel_type = %s ";
 
         if ($new_items >= Constants::MIN) {
             // Use items added within last month
@@ -477,7 +474,7 @@ class SitkaCarousel
     // Custom CLI commands
     public function registerWPCLI()
     {
-        \WP_CLI::add_command('sitka-carousel-runner', [&$this, 'limitedRunnerCmd']);
+        \WP_CLI::add_command('sitka-carousel-runner', [$this, 'limitedRunnerCmd']);
     }
 
     /**
