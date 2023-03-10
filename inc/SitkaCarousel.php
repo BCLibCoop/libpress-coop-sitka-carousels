@@ -4,9 +4,19 @@ namespace BCLibCoop\SitkaCarousel;
 
 class SitkaCarousel
 {
+    /**
+     * Database Version
+     */
     private const DB_VER = '0.1.0';
+
+    /**
+     * Transient key used to cache response
+     */
     private $transient_key = 'sitka_carousel';
 
+    /**
+     * Initialize the plugin
+     */
     public function __construct()
     {
         // Register sitka_carousel shortcode
@@ -22,7 +32,9 @@ class SitkaCarousel
         add_action('coop_sitka_carousels_trigger', [$this, 'limitedRunner'], 10, 3);
     }
 
-    // Enqueue scripts and styles
+    /**
+     * Enqueue frontend scripts and styles
+     */
     public function frontendDeps()
     {
         $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
@@ -80,6 +92,9 @@ class SitkaCarousel
         );
     }
 
+    /**
+     * Enqueue admin scripts and styles
+     */
     public function adminDeps($hook)
     {
         if ($hook === 'site-manager_page_sitka-carousel-controls') {
@@ -96,7 +111,10 @@ class SitkaCarousel
         }
     }
 
-    // Register add_meta_box to provide instructions on how to add a carousel to a Highlight post
+    /**
+     * Register add_meta_box to provide instructions on how to add a carousel
+     * to a Highlight post
+     */
     public function metabox()
     {
         add_meta_box(
@@ -109,6 +127,9 @@ class SitkaCarousel
         );
     }
 
+    /**
+     * Register the admin page
+     */
     public function adminMenu()
     {
         add_submenu_page(
@@ -121,6 +142,9 @@ class SitkaCarousel
         );
     }
 
+    /**
+     * Render the admin page
+     */
     public function adminPage()
     {
         // Display in form:
@@ -156,6 +180,9 @@ class SitkaCarousel
         include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/admin.php';
     }
 
+    /**
+     * Get the proper catalogue endpoint for the current library
+     */
     public static function getCatalogueUrl()
     {
         $catalogue_url = Constants::EG_URL;
@@ -171,9 +198,9 @@ class SitkaCarousel
         return $catalogue_url;
     }
 
-    /*
-    * Callback function for site activation - checks for network activation
-    */
+    /**
+     * Callback function for site activation - checks for network activation
+     */
     public static function activate($network_wide)
     {
         if (is_multisite() && $network_wide) {
@@ -194,9 +221,9 @@ class SitkaCarousel
         }
     }
 
-    /*
-    * Callback function for single site install
-    */
+    /**
+     * Callback function for single site install
+     */
     public static function install()
     {
         global $wpdb;
@@ -244,9 +271,9 @@ class SitkaCarousel
         }
     }
 
-    /*
-    * Callback function for when a new blog is added to a network install
-    */
+    /**
+     * Callback function for when a new blog is added to a network install
+     */
     public function newBlog($blog_id, $user_id, $domain, $path, $site_id, $meta)
     {
         if (is_plugin_active_for_network(plugin_basename(COOP_SITKA_CAROUSEL_PLUGINFILE))) {
@@ -256,9 +283,9 @@ class SitkaCarousel
         }
     }
 
-    /*
-    * Callback function for generating sitka_carousel shortag
-    */
+    /**
+     * Callback function for generating sitka_carousel shortag
+     */
     public function shortcode($attr = [])
     {
         $attr = shortcode_atts(
@@ -449,16 +476,18 @@ class SitkaCarousel
         return array_filter((array) $bibs);
     }
 
-    /*
-    * Custom Meta Box on Highlights admin page to provide instructions on how to add
-    * a Sitka Carousel shortcode.
-    */
+    /**
+     * Custom Meta Box on Highlights admin page to provide instructions on how
+     * to add a Sitka Carousel shortcode.
+     */
     public function showMetabox()
     {
         include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/metabox.php';
     }
 
-    // Action callback for single or groups runs called by AJAX
+    /**
+     * Action callback for single or groups runs called by AJAX
+     */
     public function ajaxUpdate()
     {
         if (check_ajax_referer('coop-sitka-carousels-limit-run', false, false) === false) {
@@ -485,7 +514,9 @@ class SitkaCarousel
         wp_send_json_error();
     }
 
-    // Custom CLI commands
+    /**
+     * Custom CLI commands
+     */
     public function registerWPCLI()
     {
         \WP_CLI::add_command('sitka-carousel-runner', [$this, 'limitedRunnerCmd']);

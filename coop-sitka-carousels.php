@@ -32,14 +32,14 @@ namespace BCLibCoop\SitkaCarousel;
 
 defined('ABSPATH') || die(-1);
 
+define('COOP_SITKA_CAROUSEL_PLUGINFILE', __FILE__);
+
 /**
  * Require Composer autoloader if installed on it's own
  */
 if (file_exists($composer = __DIR__ . '/vendor/autoload.php')) {
     require_once $composer;
 }
-
-define('COOP_SITKA_CAROUSEL_PLUGINFILE', __FILE__);
 
 // Hook called when plugin is activated, called function checks for
 // network activation on a multisite install

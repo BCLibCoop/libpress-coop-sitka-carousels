@@ -1,6 +1,6 @@
 <?php
 
-/*
+/**
  * Script to be run via cron with via wp-cli
  * wp sitka-carousel-runner --period=1
  *

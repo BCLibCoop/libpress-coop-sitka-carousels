@@ -7,8 +7,14 @@ namespace BCLibCoop\SitkaCarousel;
  */
 class OSRFQuery
 {
-    protected $catalogueUrl;
+    /**
+     * Holds the query to be run
+     */
     protected $query;
+
+    /**
+     * Holds the returned results
+     */
     protected $results;
 
     /**
@@ -16,14 +22,14 @@ class OSRFQuery
      */
     public function __construct($request_data, $library_cat_url = '')
     {
-        $this->catalogueUrl = $library_cat_url ? : Constants::EG_URL;
+        $library_cat_url = $library_cat_url ? : Constants::EG_URL;
 
         // Build the request
-        $this->query = $this->osrfHttpQueryBuilder($request_data);
+        $this->osrfHttpQueryBuilder($request_data);
 
         // Post to the translator service
         $eg_query_result = wp_remote_post(
-            $this->catalogueUrl . '/osrf-http-translator',
+            $library_cat_url . '/osrf-http-translator',
             $this->query
         );
 
@@ -72,6 +78,10 @@ class OSRFQuery
         }
     }
 
+    /**
+     * Return the result, if any, returning a single result if that's all there
+     * was, or an array of results othwerwise
+     */
     public function getResult()
     {
         return $this->results ? (count($this->results) > 1 ? $this->results : $this->results[0]) : [];
@@ -111,6 +121,6 @@ class OSRFQuery
 
         $request['body'] = 'osrf-msg=' . json_encode($osrf_msg);
 
-        return $request;
+        $this->query = $request;
     }
 }
