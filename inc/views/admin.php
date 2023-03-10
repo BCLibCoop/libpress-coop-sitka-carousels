@@ -33,7 +33,7 @@
       <?php foreach (BCLibCoop\SitkaCarousel\Constants::TYPE as $carousel_type) : ?>
             <?php $link = sprintf(
                 "%s/opac/extras/opensearch/1.1/%s/html/?searchTerms=%s&searchSort=create_date&count=25",
-                $opensearch_url,
+                $catalogue_url,
                 $shortname,
                 urlencode(BCLibCoop\SitkaCarousel\Constants::SEARCH[$carousel_type] . " create_date($date_checked)")
             ); ?>

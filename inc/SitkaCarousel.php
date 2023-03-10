@@ -131,7 +131,6 @@ class SitkaCarousel
         $run_message = '';
         $last_checked = get_option('_coop_sitka_carousels_date_last_checked');
         $shortname = get_option('_coop_sitka_lib_shortname');
-        $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
 
         if ($transient = get_transient('_coop_sitka_carousels_new_items_by_list')) {
             $run_message = "<br />The following new items were retrieved last run:<br />"
@@ -152,15 +151,24 @@ class SitkaCarousel
             $date_checked = '';
         }
 
-        $opensearch_url = Constants::EG_URL;
+        $catalogue_url = self::getCatalogueUrl();
+
+        include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/admin.php';
+    }
+
+    public static function getCatalogueUrl()
+    {
+        $catalogue_url = Constants::EG_URL;
+
+        $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
         $cat_suffix = array_filter(explode('.', $lib_cat_url));
         $cat_suffix = end($cat_suffix);
 
         if (!empty($cat_suffix) && !in_array($cat_suffix, Constants::PROD_LIBS)) {
-            $opensearch_url = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
+            $catalogue_url = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
         }
 
-        include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/admin.php';
+        return $catalogue_url;
     }
 
     /*
@@ -294,9 +302,12 @@ class SitkaCarousel
         $network_domain = preg_replace('/^libpress\./', '', $GLOBALS['current_site']->domain);
 
         $lib_locg = get_option('_coop_sitka_lib_locg', 1);
+        $cat_link = trim(get_option('_coop_sitka_lib_cat_link'));
 
-        if (!empty(get_option('_coop_sitka_lib_cat_link'))) {
-            $catalogue_prefix = 'https://' . trim(get_option('_coop_sitka_lib_cat_link')) . Constants::CATALOGUE_SUFFIX;
+        $catalogue_prefix = Constants::EG_URL;
+
+        if (!empty($cat_link)) {
+            $catalogue_prefix = 'https://' . $cat_link . Constants::CATALOGUE_SUFFIX;
         } elseif (count(explode('.', $current_domain)) >= 4 && strpos($current_domain, $network_domain) !== false) {
             $catalogue_prefix = 'https://' . str_replace('.' . $network_domain, '', $current_domain)
                 . Constants::CATALOGUE_SUFFIX;
@@ -396,7 +407,10 @@ class SitkaCarousel
      */
     public function getFromOSRF($attr)
     {
-        $bibs = get_transient("{$this->transient_key}_{$attr['carousel_id']}");
+        $catalogur_url = self::getCatalogueUrl();
+        $carousel_key = md5($catalogur_url . "_{$attr['carousel_id']}");
+        $transient_key = "{$this->transient_key}_{$carousel_key}";
+        $bibs = get_transient($transient_key);
 
         if ($bibs === false) {
             $carousel = (new OSRFQuery([
@@ -405,7 +419,7 @@ class SitkaCarousel
                     'params' => [
                         $attr['carousel_id']
                     ],
-            ]))->getResult();
+                ], $catalogur_url))->getResult();
 
             if (!empty($carousel) && !empty($carousel->bibs)) {
                 foreach ($carousel->bibs as $bib) {
@@ -417,7 +431,7 @@ class SitkaCarousel
                 }
 
                 set_transient(
-                    "{$this->transient_key}_{$attr['carousel_id']}",
+                    $transient_key,
                     $bibs,
                     MINUTE_IN_SECONDS * 15
                 );
@@ -425,7 +439,7 @@ class SitkaCarousel
                 // If our API call was successful, but we got no results, cache
                 // that for 1 minute so each page load doesn't make a new request
                 set_transient(
-                    "{$this->transient_key}_{$attr['carousel_id']}",
+                    $transient_key,
                     [],
                     MINUTE_IN_SECONDS
                 );

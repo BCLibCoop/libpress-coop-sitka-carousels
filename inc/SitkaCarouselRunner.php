@@ -105,7 +105,7 @@ class SitkaCarouselRunner
                 continue;
             }
 
-            $this->library->cat_url = get_option('_coop_sitka_lib_cat_link');
+            $this->library->cat_url = SitkaCarousel::getCatalogueUrl();
             $this->library->branches = [];
 
             // Retrieve this library's meta data from EG

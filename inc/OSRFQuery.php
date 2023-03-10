@@ -16,14 +16,7 @@ class OSRFQuery
      */
     public function __construct($request_data, $library_cat_url = '')
     {
-        $this->catalogueUrl = Constants::EG_URL;
-
-        $cat_suffix = array_filter(explode('.', $library_cat_url));
-        $cat_suffix = end($cat_suffix);
-
-        if (!empty($cat_suffix) && !in_array($cat_suffix, Constants::PROD_LIBS)) {
-            $this->catalogueUrl = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
-        }
+        $this->catalogueUrl = $library_cat_url ? : Constants::EG_URL;
 
         // Build the request
         $this->query = $this->osrfHttpQueryBuilder($request_data);
@@ -81,7 +74,7 @@ class OSRFQuery
 
     public function getResult()
     {
-        return count($this->results) > 1 ? $this->results : $this->results[0];
+        return $this->results ? (count($this->results) > 1 ? $this->results : $this->results[0]) : [];
     }
 
     /**
