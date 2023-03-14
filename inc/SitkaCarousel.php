@@ -373,7 +373,7 @@ class SitkaCarousel
             'autoPlay' => 4000,
             'wrapAround' => true,
             'pageDots' => false,
-            'fade' => ($attr['transition'] === 'fade'),
+            'fade' => ($attr['transition'] !== 'swipe'),
         ];
         $flickity_options = json_encode($flickity_options);
 
@@ -435,7 +435,7 @@ class SitkaCarousel
     public function getFromOSRF($attr)
     {
         $catalogur_url = self::getCatalogueUrl();
-        $carousel_key = md5($catalogur_url . "_{$attr['carousel_id']}");
+        $carousel_key = md5("{$catalogur_url}_{$attr['carousel_id']}");
         $transient_key = "{$this->transient_key}_{$carousel_key}";
         $bibs = get_transient($transient_key);
 
@@ -482,7 +482,66 @@ class SitkaCarousel
      */
     public function showMetabox()
     {
+        $sitka_carousels = $this->getOrgCarousels();
+
         include dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/inc/views/metabox.php';
+    }
+
+    /**
+     * Get a list of the current carousels avaliable for the site's EG org
+     *
+     * @return array
+     */
+    private function getOrgCarousels()
+    {
+        $sitka_carousels = [];
+
+        $shortname = trim(get_option('_coop_sitka_lib_shortname'));
+
+        if (!empty($shortname) && $shortname !== 'NA') {
+            $catalogur_url = self::getCatalogueUrl();
+            $carousel_key = md5("{$catalogur_url }_{$shortname}");
+            $transient_key = "{$this->transient_key}_{$carousel_key}";
+
+            $carousels = get_transient($transient_key);
+
+            if ($carousels !== false) {
+                $sitka_carousels = $carousels;
+            } else {
+                // Retrieve this library's meta data from EG
+                $lib_meta = (new OSRFQuery([
+                    'service' => 'open-ils.actor',
+                    'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
+                    'params' => [
+                        $shortname,
+                    ],
+                ], $catalogur_url))->getResult();
+
+                $sitka_id = (int) $lib_meta[3] ?? 0;
+
+                if ($sitka_id > 0) {
+                    $carousels = (new OSRFQuery([
+                        'service' => 'open-ils.actor',
+                        'method' => 'open-ils.actor.carousel.retrieve_by_org',
+                        'params' => [
+                            $sitka_id
+                        ],
+                    ], $catalogur_url))->getResult();
+
+                    $sitka_carousels = array_map(function ($carousel) {
+                        return [
+                            'carousel_id' => $carousel->carousel,
+                            'name' => $carousel->override_name ?? $carousel->name,
+                        ];
+                    }, $carousels);
+
+                    // Always set transient, as we still want to cache an empty result
+                    set_transient($transient_key, $sitka_carousels, MINUTE_IN_SECONDS * 10);
+                }
+            }
+        }
+
+        return $sitka_carousels;
     }
 
     /**
@@ -490,7 +549,10 @@ class SitkaCarousel
      */
     public function ajaxUpdate()
     {
-        if (check_ajax_referer('coop-sitka-carousels-limit-run', false, false) === false) {
+        if (
+            check_ajax_referer('coop-sitka-carousels-limit-run', false, false) === false
+            || ! current_user_can('manage_options')
+        ) {
             wp_send_json_error();
         }
 
