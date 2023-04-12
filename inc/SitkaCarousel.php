@@ -536,7 +536,7 @@ class SitkaCarousel
                     }, $carousels);
 
                     // Always set transient, as we still want to cache an empty result
-                    set_transient($transient_key, $sitka_carousels, MINUTE_IN_SECONDS * 10);
+                    set_transient($transient_key, $sitka_carousels, MINUTE_IN_SECONDS);
                 }
             }
         }
