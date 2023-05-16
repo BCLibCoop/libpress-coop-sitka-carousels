@@ -2,6 +2,9 @@
 
 namespace BCLibCoop\SitkaCarousel;
 
+use function TenUp\AsyncTransients\get_async_transient;
+use function TenUp\AsyncTransients\set_async_transient;
+
 class SitkaCarousel
 {
     /**
@@ -431,49 +434,72 @@ class SitkaCarousel
     /**
      * Retrieve a specific carousel ID from Sitka, caching in a transient for a
      * reasonable amount of time
+     *
+     * Checks an "async transient" that will return stale data, and then return
+     * to the webserver while PHP-FPM runs the update if needed
      */
     public function getFromOSRF($attr)
     {
-        $catalogur_url = self::getCatalogueUrl();
-        $carousel_key = md5("{$catalogur_url}_{$attr['carousel_id']}");
+        $catalogue_url = self::getCatalogueUrl();
+        $carousel_key = md5("{$catalogue_url}_{$attr['carousel_id']}");
         $transient_key = "{$this->transient_key}_{$carousel_key}";
-        $bibs = get_transient($transient_key);
 
-        if ($bibs === false) {
-            $carousel = (new OSRFQuery([
-                    'service' => 'open-ils.actor',
-                    'method' => 'open-ils.actor.carousel.get_contents',
-                    'params' => [
-                        $attr['carousel_id']
-                    ],
-                ], $catalogur_url))->getResult();
-
-            if (!empty($carousel) && !empty($carousel->bibs)) {
-                foreach ($carousel->bibs as $bib) {
-                    $bibs[] = [
-                        'bibkey' => $bib->id,
-                        'title' => $bib->title ?? '',
-                        'author' => $bib->author ?? '',
-                    ];
-                }
-
-                set_transient(
-                    $transient_key,
-                    $bibs,
-                    MINUTE_IN_SECONDS * 15
-                );
-            } else {
-                // If our API call was successful, but we got no results, cache
-                // that for 1 minute so each page load doesn't make a new request
-                set_transient(
-                    $transient_key,
-                    [],
-                    MINUTE_IN_SECONDS
-                );
-            }
-        }
+        $bibs = get_async_transient(
+            $transient_key,
+            [$this, 'realGetFromOSRF'],
+            [$transient_key, $attr, $catalogue_url]
+        );
 
         return array_filter((array) $bibs);
+    }
+
+    /**
+     * The real function to return carousel data
+     */
+    public function realGetFromOSRF($transient_key, $attr, $catalogue_url)
+    {
+        // Check for a lock for the update of this carousel data and bail if set
+        if (get_transient("{$transient_key}_lock")) {
+            return;
+        }
+
+        // Set a lock. 5 minutes max
+        set_transient("{$transient_key}_lock", true, MINUTE_IN_SECONDS * 5);
+
+        $bibs = [];
+        // Default to only persisting for 1 minute
+        $transient_time = MINUTE_IN_SECONDS;
+
+        $carousel = (new OSRFQuery([
+                'service' => 'open-ils.actor',
+                'method' => 'open-ils.actor.carousel.get_contents',
+                'params' => [
+                    $attr['carousel_id']
+                ],
+            ], $catalogue_url))->getResult();
+
+        if (!empty($carousel) && !empty($carousel->bibs)) {
+            foreach ($carousel->bibs as $bib) {
+                $bibs[] = [
+                    'bibkey' => $bib->id,
+                    'title' => $bib->title ?? '',
+                    'author' => $bib->author ?? '',
+                ];
+            }
+
+            // If we get results, persist for 15 minutes
+            $transient_time = MINUTE_IN_SECONDS * 15;
+        }
+
+        // Cache the results
+        set_async_transient(
+            $transient_key,
+            $bibs,
+            $transient_time
+        );
+
+        // Delete the lock once we have finished running
+        delete_transient("{$transient_key}_lock");
     }
 
     /**
