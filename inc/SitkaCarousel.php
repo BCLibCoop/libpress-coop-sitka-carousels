@@ -370,6 +370,9 @@ class SitkaCarousel
                 $attr['size'],
                 $row_format['bibkey']
             );
+
+            // No crazy-long titles
+            $row_format['title'] = wp_trim_words($row_format['title'], 6);
         }
 
         $flickity_options = [
