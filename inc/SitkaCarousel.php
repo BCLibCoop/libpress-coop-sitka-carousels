@@ -2,6 +2,8 @@
 
 namespace BCLibCoop\SitkaCarousel;
 
+use BCLibCoop\CoopHighlights\CoopHighlights;
+
 use function TenUp\AsyncTransients\get_async_transient;
 use function TenUp\AsyncTransients\set_async_transient;
 
@@ -40,6 +42,8 @@ class SitkaCarousel
      */
     public function frontendDeps()
     {
+        global $post;
+
         $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
 
         /**
@@ -48,51 +52,56 @@ class SitkaCarousel
          * Assuming we keep versions in sync, this shouldn't be an issue.
          */
 
-        /* flickity */
-        wp_enqueue_script(
-            'flickity',
-            plugins_url('/assets/js/flickity.pkgd' . $suffix . '.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
-            [
-                'jquery',
-            ],
-            '2.3.0',
-            true
-        );
-
-        wp_enqueue_script(
-            'flickity-fade',
-            plugins_url('/assets/js/flickity-fade.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
-            [
+        if (
+            (!empty($post) && has_shortcode($post->post_content, 'sitka_carousel'))
+            || (is_front_page() && has_shortcode(CoopHighlights::allHighlightsContent(), 'sitka_carousel'))
+        ) {
+            /* flickity */
+            wp_enqueue_script(
                 'flickity',
-            ],
-            '1.0.0',
-            true
-        );
+                plugins_url('/assets/js/flickity.pkgd' . $suffix . '.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                [
+                    'jquery',
+                ],
+                '2.3.0-accessible',
+                true
+            );
 
-        wp_register_style(
-            'flickity',
-            plugins_url('/assets/css/flickity' . $suffix . '.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-            [],
-            '2.3.0'
-        );
+            wp_enqueue_script(
+                'flickity-fade',
+                plugins_url('/assets/js/flickity-fade.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                [
+                    'flickity',
+                ],
+                '1.0.0',
+                true
+            );
 
-        wp_register_style(
-            'flickity-fade',
-            plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-            ['flickity'],
-            '1.0.0'
-        );
-
-        // Add CSS for carousel customization
-        wp_enqueue_style(
-            'coop-sitka-carousels-css',
-            plugins_url('assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-            [
+            wp_register_style(
                 'flickity',
-                'flickity-fade'
-            ],
-            get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
-        );
+                plugins_url('/assets/css/flickity' . $suffix . '.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                [],
+                '2.3.0-accessible'
+            );
+
+            wp_register_style(
+                'flickity-fade',
+                plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                ['flickity'],
+                '1.0.0'
+            );
+
+            // Add CSS for carousel customization
+            wp_enqueue_style(
+                'coop-sitka-carousels-css',
+                plugins_url('assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                [
+                    'flickity',
+                    'flickity-fade'
+                ],
+                get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
+            );
+        }
     }
 
     /**
@@ -560,7 +569,7 @@ class SitkaCarousel
                     $sitka_carousels = array_map(function ($carousel) {
                         return [
                             'carousel_id' => $carousel->carousel,
-                            'name' => $carousel->override_name ?? $carousel->name,
+                            'name' => $carousel->override_name ?? $carousel->name ?? '',
                         ];
                     }, $carousels);
 

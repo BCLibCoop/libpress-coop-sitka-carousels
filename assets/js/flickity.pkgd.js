@@ -1,5 +1,5 @@
 /*!
- * Flickity PACKAGED v2.3.0
+ * Flickity PACKAGED v2.3.0-accessible
  * Touch, responsive, flickable carousels
  *
  * Licensed GPLv3 for open source use
@@ -799,6 +799,8 @@ return utils;
 
 
 
+var FOCUSABLES_SELECTOR = 'a[href], button, input, textarea, select, details,[tabindex]';
+
 function Cell( elem, parent ) {
   this.element = elem;
   this.parent = parent;
@@ -811,6 +813,9 @@ var proto = Cell.prototype;
 proto.create = function() {
   this.element.style.position = 'absolute';
   this.element.setAttribute( 'aria-hidden', 'true' );
+  this.element.setAttribute( 'role', 'group' );
+  this.element.setAttribute( 'aria-roledescription', 'slide' );
+  _hideFocusables( this.element );
   this.x = 0;
   this.shift = 0;
   this.element.style[ this.parent.originSide ] = 0;
@@ -855,13 +860,29 @@ proto.renderPosition = function( x ) {
     this.parent.getPositionValue( adjustedX ) + ')';
 };
 
+  function _showFocusables( element ) {
+    element.querySelectorAll( FOCUSABLES_SELECTOR ).forEach( function( focusableEl ) {
+      focusableEl.removeAttribute('aria-hidden');
+      focusableEl.setAttribute( 'tabindex', '0' );
+    } );
+  }
+
 proto.select = function() {
   this.element.classList.add('is-selected');
+  _showFocusables( this.element );
   this.element.removeAttribute('aria-hidden');
 };
 
+  function _hideFocusables( element ) {
+    element.querySelectorAll( FOCUSABLES_SELECTOR ).forEach( function( focusableEl ) {
+      focusableEl.setAttribute( 'aria-hidden', 'true' );
+      focusableEl.setAttribute( 'tabindex', '-1' );
+    } );
+  }
+
 proto.unselect = function() {
   this.element.classList.remove('is-selected');
+  _hideFocusables( this.element );
   this.element.setAttribute( 'aria-hidden', 'true' );
 };
 
@@ -1347,7 +1368,7 @@ proto.activate = function() {
 
   if ( this.options.accessibility ) {
     // allow element to focusable
-    this.element.tabIndex = 0;
+    // this.element.tabIndex = 0;
     // listen for key presses
     this.element.addEventListener( 'keydown', this );
   }
@@ -1364,8 +1385,17 @@ proto.activate = function() {
 proto._createSlider = function() {
   // slider element does all the positioning
   var slider = document.createElement('div');
+  slider.id = 'flickity-slider-' + this.guid;
   slider.className = 'flickity-slider';
   slider.style[ this.originSide ] = 0;
+
+  // When automatic rotation is turned off, the carousel slide content is included
+  // in a live region. This makes it easier for screen reader users to scan through
+  // the carousel slides. When screen reader users activate the next or previous
+  // button, the new slide content is announced, giving users immediate feedback that
+  // helps them determine whether or not to interact with the content.
+  slider.setAttribute( 'aria-live', 'polite' );
+
   this.slider = slider;
 };
 
@@ -1394,6 +1424,10 @@ proto._makeCells = function( elems ) {
   var cells = cellElems.map( function( cellElem ) {
     return new Cell( cellElem, this );
   }, this );
+
+  cells.forEach( function( cell, index ) {
+    cell.element.setAttribute( 'aria-label', ( index + 1 ) + ' of ' + cells.length );
+  } );
 
   return cells;
 };
@@ -1983,7 +2017,7 @@ proto.watchCSS = function() {
 proto.onkeydown = function( event ) {
   // only work if element is in focus
   var isNotFocused = document.activeElement && document.activeElement != this.element;
-  if ( !this.options.accessibility || isNotFocused ) {
+  if ( !this.options.accessibility && isNotFocused ) {
     return;
   }
 
@@ -3131,7 +3165,8 @@ PrevNextButton.prototype._create = function() {
   // init as disabled
   this.disable();
 
-  element.setAttribute( 'aria-label', this.isPrevious ? 'Previous' : 'Next' );
+  element.setAttribute( 'aria-label', this.isPrevious ? 'Previous Slide' : 'Next Slide' );
+  element.setAttribute( 'aria-controls', 'flickity-slider-' + this.parent.guid );
 
   // create arrow
   var svg = this.createSVG();
@@ -3144,8 +3179,9 @@ PrevNextButton.prototype._create = function() {
 PrevNextButton.prototype.activate = function() {
   this.bindStartEvent( this.element );
   this.element.addEventListener( 'click', this );
+  this.element.addEventListener( 'focus', this );
   // add to DOM
-  this.parent.element.appendChild( this.element );
+  this.parent.element.insertBefore( this.element, this.parent.viewport );
 };
 
 PrevNextButton.prototype.deactivate = function() {
@@ -3197,6 +3233,22 @@ PrevNextButton.prototype.onclick = function() {
   this.parent.uiChange();
   var method = this.isPrevious ? 'previous' : 'next';
   this.parent[ method ]();
+};
+
+PrevNextButton.prototype.onfocus = function() {
+  if ( !this.isEnabled ) {
+    return;
+  }
+  this.parent.stopPlayer();
+  this.element.addEventListener( 'blur', this );
+};
+
+PrevNextButton.prototype.onblur = function() {
+  if ( !this.isEnabled ) {
+    return;
+  }
+  this.parent.playPlayer();
+  this.element.removeEventListener( 'blur', this );
 };
 
 // -----  ----- //
@@ -3341,7 +3393,7 @@ PageDots.prototype.activate = function() {
   this.holder.addEventListener( 'click', this.handleClick );
   this.bindStartEvent( this.holder );
   // add to DOM
-  this.parent.element.appendChild( this.holder );
+  this.parent.element.insertBefore( this.holder, this.parent.viewport );
 };
 
 PageDots.prototype.deactivate = function() {
@@ -3564,6 +3616,7 @@ Player.prototype.clear = function() {
 
 Player.prototype.pause = function() {
   if ( this.state == 'playing' ) {
+    this.parent.slider.setAttribute( 'aria-live', 'polite' );
     this.state = 'paused';
     this.clear();
   }
@@ -3572,6 +3625,7 @@ Player.prototype.pause = function() {
 Player.prototype.unpause = function() {
   // re-start play if paused
   if ( this.state == 'paused' ) {
+    this.parent.slider.setAttribute( 'aria-live', 'off' );
     this.play();
   }
 };
@@ -3609,8 +3663,17 @@ proto.activatePlayer = function() {
   if ( !this.options.autoPlay ) {
     return;
   }
+
+  // https://www.w3.org/TR/wai-aria-practices/examples/carousel/carousel-1.html
+  // Very importantly, if automatic rotation is turned on, the live region is
+  // disabled. If it were not, the page would be come unusable as announcements
+  // of the continuously changing content constantly interrupt anything else the
+  // user is reading.
+  this.slider.setAttribute( 'aria-live', 'off' );
+
   this.player.play();
   this.element.addEventListener( 'mouseenter', this );
+  this.element.addEventListener( 'focus', this );
 };
 
 // Player API, don't hate the ... thanks I know where the door is
@@ -3651,6 +3714,17 @@ proto.onmouseenter = function() {
 proto.onmouseleave = function() {
   this.player.unpause();
   this.element.removeEventListener( 'mouseleave', this );
+};
+
+// ----- focus/blur ----- //
+proto.onfocus = function() {
+  this.player.pause();
+  this.element.addEventListener( 'blur', this );
+};
+
+proto.onblur = function() {
+  this.player.unpause();
+  this.element.removeEventListener( 'blur', this );
 };
 
 // -----  ----- //
@@ -3960,7 +4034,7 @@ return Flickity;
 } ) );
 
 /*!
- * Flickity v2.3.0
+ * Flickity v2.3.0-accessible
  * Touch, responsive, flickable carousels
  *
  * Licensed GPLv3 for open source use
