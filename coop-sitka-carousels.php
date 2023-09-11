@@ -17,7 +17,7 @@
  * @wordpress-plugin
  * Plugin Name:       Sitka Carousels
  * Description:       New book carousel generator from Sitka/Evergreen catalogue; provides shortcode for carousels
- * Version:           2.4.0
+ * Version:           3.0.0
  * Network:           true
  * Requires at least: 5.2
  * Requires PHP:      7.0
@@ -40,10 +40,6 @@ define('COOP_SITKA_CAROUSEL_PLUGINFILE', __FILE__);
 if (file_exists($composer = __DIR__ . '/vendor/autoload.php')) {
     require_once $composer;
 }
-
-// Hook called when plugin is activated, called function checks for
-// network activation on a multisite install
-register_activation_hook(__FILE__, [SitkaCarousel::class, 'activate']);
 
 add_action('plugins_loaded', function () {
     new SitkaCarousel();
