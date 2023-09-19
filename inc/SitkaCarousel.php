@@ -235,7 +235,7 @@ class SitkaCarousel
     {
         global $wpdb;
 
-        $table_name = "{$wpdb->prefix}sitka_carouselsz";
+        $table_name = "{$wpdb->prefix}sitka_carousels";
 
         /**
          * Since we're no longer checking/updating/creating the database tables,
@@ -383,16 +383,25 @@ class SitkaCarousel
             if ($carousels !== false) {
                 $sitka_carousels = $carousels;
             } else {
-                // Retrieve this library's meta data from EG
-                $lib_meta = (new OSRFQuery([
-                    'service' => 'open-ils.actor',
-                    'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
-                    'params' => [
-                        $shortname,
-                    ],
-                ], $catalogur_url))->getResult();
+                $map_transient = 'coop_sitka_shortname_map';
+                $mapping = get_site_transient($map_transient) ?: [];
 
-                $sitka_id = (int) $lib_meta[3] ?? 0;
+                if (!empty($mapping[$shortname])) {
+                    $sitka_id = (int) $mapping[$shortname];
+                } else {
+                    // Retrieve this library's meta data from EG
+                    $lib_meta = (new OSRFQuery([
+                        'service' => 'open-ils.actor',
+                        'method' => 'open-ils.actor.org_unit.retrieve_by_shortname',
+                        'params' => [
+                            $shortname,
+                        ],
+                    ], $catalogur_url))->getResult();
+
+                    $sitka_id = (int) $lib_meta[3] ?? 0;
+                    $mapping[$shortname] = $sitka_id;
+                    set_site_transient($map_transient, $mapping, MONTH_IN_SECONDS);
+                }
 
                 if ($sitka_id > 0) {
                     $carousels = (new OSRFQuery([
