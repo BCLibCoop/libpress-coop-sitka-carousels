@@ -6,6 +6,7 @@
                     <a href="<?= $row['catalogue_url'] ?>">
                         <div class="carousel-item-cover">
                             <img alt="" src="<?= $row['cover_url'] ?>" class="carousel-item-image">
+                            <?php // TODO: Hide/show no-cover image properly (not found covers will 404 but also return a 1x1 png) ?>
                             <img alt="" src="<?= $attr['no_cover'] ?>" class="carousel-item-image carousel-item-image-default">
                         </div>
                         <div class="carousel-item-info">

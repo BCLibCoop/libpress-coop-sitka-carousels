@@ -66,29 +66,25 @@ class SitkaCarousel
                 true
             );
 
-            wp_register_style(
+            wp_enqueue_style(
                 'flickity',
                 plugins_url('/assets/css/flickity' . $suffix . '.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
                 [],
                 '2.3.0-accessible'
             );
 
-            wp_register_style(
-                'flickity-fade',
-                plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                ['flickity'],
-                '1.0.0'
-            );
+            if (empty($GLOBALS['flickity_fade_enqueued'])) {
+                wp_add_inline_style(
+                    'flickity',
+                    file_get_contents(dirname(COOP_SLIDESHOW_PLUGIN) . '/assets/css/flickity-fade.css')
+                );
+                $GLOBALS['flickity_fade_enqueued'] = true;
+            }
 
             // Add CSS for carousel customization
-            wp_enqueue_style(
-                'coop-sitka-carousels-css',
-                plugins_url('assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                [
-                    'flickity',
-                    'flickity-fade'
-                ],
-                get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
+            wp_add_inline_style(
+                'flickity',
+                file_get_contents(dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/coop-sitka-carousels.css')
             );
         }
     }

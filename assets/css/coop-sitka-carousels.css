@@ -38,6 +38,7 @@
 }
 
 .sitka-carousel .carousel-item .carousel-item-image {
+  /* TODO: Allow natural aspect ratios. Max jacket dimensions seem to be 240x360 */
   width: 150px !important;
   height: 225px !important;
   z-index: 10;
