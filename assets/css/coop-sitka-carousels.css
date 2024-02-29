@@ -8,10 +8,7 @@
   display: none;
 }
 
-.sitka-carousel .carousel-item:first-child {
-  display: block;
-}
-
+.sitka-carousel .carousel-item:first-child,
 .sitka-carousel.flickity-enabled .carousel-item {
   display: block;
 }
@@ -29,8 +26,7 @@
 }
 
 .sitka-carousel .carousel-item {
-  margin: 0 auto;
-  width: 100%;
+  margin-right: 5%;
 }
 
 .sitka-carousel .carousel-item .carousel-item-cover {
