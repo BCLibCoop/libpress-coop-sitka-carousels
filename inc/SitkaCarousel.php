@@ -53,7 +53,7 @@ class SitkaCarousel
                     'jquery',
                 ],
                 '2.3.0-accessible',
-                true
+                ['strategy' => 'defer']
             );
 
             wp_enqueue_script(
@@ -63,7 +63,7 @@ class SitkaCarousel
                     'flickity',
                 ],
                 '1.0.0',
-                true
+                ['strategy' => 'defer']
             );
 
             wp_enqueue_style(
@@ -73,19 +73,25 @@ class SitkaCarousel
                 '2.3.0-accessible'
             );
 
-            if (empty($GLOBALS['flickity_fade_enqueued'])) {
-                wp_add_inline_style(
-                    'flickity',
-                    file_get_contents(dirname(COOP_SLIDESHOW_PLUGIN) . '/assets/css/flickity-fade.css')
-                );
-                $GLOBALS['flickity_fade_enqueued'] = true;
-            }
+            wp_enqueue_style(
+                'flickity-fade',
+                plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                ['flickity'],
+                '1.0.0'
+            );
+            wp_style_add_data('flickity-fade', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/flickity-fade.css');
 
             // Add CSS for carousel customization
-            wp_add_inline_style(
-                'flickity',
-                file_get_contents(dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/coop-sitka-carousels.css')
+            wp_enqueue_style(
+                'coop-sitka-carousels-css',
+                plugins_url('/assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+                [
+                    'flickity',
+                    'flickity-fade'
+                ],
+                get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
             );
+            wp_style_add_data('coop-sitka-carousels-css', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/coop-sitka-carousels.css');
         }
     }
 
