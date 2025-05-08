@@ -9,6 +9,8 @@ use function TenUp\AsyncTransients\set_async_transient;
 
 class SitkaCarousel
 {
+    public static $instance;
+
     /**
      * Transient key used to cache response
      */
@@ -19,17 +21,45 @@ class SitkaCarousel
      */
     public function __construct()
     {
+        if (isset(self::$instance)) {
+            return;
+        }
+
+        self::$instance = $this;
+
         // Register sitka_carousel shortcode
         add_shortcode('sitka_carousel', [$this, 'shortcode']);
+        add_action('wp_enqueue_scripts', [$this, 'enqueueShortcodeAssets']);
 
-        add_action('wp_enqueue_scripts', [$this, 'frontendDeps']);
+        add_action('widgets_init', [$this, 'widgetsInit']);
+
         add_action('add_meta_boxes', [$this, 'metabox'], 10, 2);
+    }
+
+    public function widgetsInit()
+    {
+        register_widget(SitkaCarouselWidget::class);
+    }
+
+    private function shouldEnqueueAssets()
+    {
+        global $post;
+
+        return (!empty($post) && has_shortcode($post->post_content, 'sitka_carousel'))
+            || (is_front_page() && has_shortcode(CoopHighlights::allHighlightsContent(), 'sitka_carousel'));
+    }
+
+    public function enqueueShortcodeAssets()
+    {
+        if ($this->shouldEnqueueAssets()) {
+            $this->frontsideEnqueueStylesScripts();
+        }
     }
 
     /**
      * Enqueue frontend scripts and styles
      */
-    public function frontendDeps()
+    public function frontsideEnqueueStylesScripts()
     {
         global $post;
 
@@ -37,62 +67,57 @@ class SitkaCarousel
 
         /**
          * All Coop plugins will include their own copy of flickity, but
-         * only the first one actually enqued should be needed/registered.
+         * only the first one actually enqueued should be needed/registered.
          * Assuming we keep versions in sync, this shouldn't be an issue.
          */
 
-        if (
-            (!empty($post) && has_shortcode($post->post_content, 'sitka_carousel'))
-            || (is_front_page() && has_shortcode(CoopHighlights::allHighlightsContent(), 'sitka_carousel'))
-        ) {
-            /* flickity */
-            wp_enqueue_script(
+        /* flickity */
+        wp_enqueue_script(
+            'flickity',
+            plugins_url('/assets/js/flickity.pkgd' . $suffix . '.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
+            [
+                'jquery',
+            ],
+            '2.3.0-accessible',
+            ['strategy' => 'defer']
+        );
+
+        wp_enqueue_script(
+            'flickity-fade',
+            plugins_url('/assets/js/flickity-fade.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
+            [
                 'flickity',
-                plugins_url('/assets/js/flickity.pkgd' . $suffix . '.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                [
-                    'jquery',
-                ],
-                '2.3.0-accessible',
-                ['strategy' => 'defer']
-            );
+            ],
+            '1.0.0',
+            ['strategy' => 'defer']
+        );
 
-            wp_enqueue_script(
-                'flickity-fade',
-                plugins_url('/assets/js/flickity-fade.js', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                [
-                    'flickity',
-                ],
-                '1.0.0',
-                ['strategy' => 'defer']
-            );
+        wp_enqueue_style(
+            'flickity',
+            plugins_url('/assets/css/flickity' . $suffix . '.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+            [],
+            '2.3.0-accessible'
+        );
 
-            wp_enqueue_style(
+        wp_enqueue_style(
+            'flickity-fade',
+            plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+            ['flickity'],
+            '1.0.0'
+        );
+        wp_style_add_data('flickity-fade', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/flickity-fade.css');
+
+        // Add CSS for carousel customization
+        wp_enqueue_style(
+            'coop-sitka-carousels-css',
+            plugins_url('/assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
+            [
                 'flickity',
-                plugins_url('/assets/css/flickity' . $suffix . '.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                [],
-                '2.3.0-accessible'
-            );
-
-            wp_enqueue_style(
-                'flickity-fade',
-                plugins_url('/assets/css/flickity-fade.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                ['flickity'],
-                '1.0.0'
-            );
-            wp_style_add_data('flickity-fade', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/flickity-fade.css');
-
-            // Add CSS for carousel customization
-            wp_enqueue_style(
-                'coop-sitka-carousels-css',
-                plugins_url('/assets/css/coop-sitka-carousels.css', COOP_SITKA_CAROUSEL_PLUGINFILE),
-                [
-                    'flickity',
-                    'flickity-fade'
-                ],
-                get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
-            );
-            wp_style_add_data('coop-sitka-carousels-css', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/coop-sitka-carousels.css');
-        }
+                'flickity-fade'
+            ],
+            get_plugin_data(COOP_SITKA_CAROUSEL_PLUGINFILE, false, false)['Version']
+        );
+        wp_style_add_data('coop-sitka-carousels-css', 'path', dirname(COOP_SITKA_CAROUSEL_PLUGINFILE) . '/assets/css/coop-sitka-carousels.css');
     }
 
     /**
@@ -132,20 +157,28 @@ class SitkaCarousel
     /**
      * Callback function for generating sitka_carousel shortag
      */
-    public function shortcode($attr = [])
+    public function shortcode($atts = [])
     {
-        $attr = shortcode_atts(
+        $atts = shortcode_atts(
             [
                 'transition' => Constants::TRANSITION[0],
                 'type' => Constants::TYPE[0],
                 'carousel_id' => false,
             ],
-            array_change_key_case((array) $attr, CASE_LOWER),
+            array_change_key_case((array) $atts, CASE_LOWER),
             'sitka_carousel'
         );
 
+        return $this->render($atts);
+    }
+
+    /**
+     * Process and render widget/shortcode
+     */
+    public function render($atts)
+    {
         // Validate atts
-        $attr = filter_var_array((array) $attr, [
+        $atts = filter_var_array((array) $atts, [
             'transition' => [
                 'filter' => FILTER_VALIDATE_REGEXP,
                 'options' => [
@@ -166,8 +199,8 @@ class SitkaCarousel
         ]);
 
         // Not allowing these to be set from the shortcode for now
-        $attr['size'] = 'medium';
-        $attr['no_cover'] = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
+        $atts['size'] = 'medium';
+        $atts['no_cover'] = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
 
         // Get the library's catalogue link
         $current_domain = $GLOBALS['current_blog']->domain;
@@ -188,7 +221,7 @@ class SitkaCarousel
 
         // If we have a carousel ID, make the call to Sitka, otherwise, use info
         // from the local DB
-        $results = empty($attr['carousel_id']) ? $this->getFromDb($attr) : $this->getFromOSRF($attr);
+        $results = empty($atts['carousel_id']) ? $this->getFromDb($atts) : $this->getFromOSRF($atts);
 
         /**
          * Prep some data for output, format URLs, etc
@@ -206,7 +239,7 @@ class SitkaCarousel
             $row_format['cover_url'] = sprintf(
                 '%s/opac/extras/ac/jacket/%s/r/%d',
                 $catalogue_prefix,
-                $attr['size'],
+                $atts['size'],
                 $row_format['bibkey']
             );
 
@@ -218,7 +251,7 @@ class SitkaCarousel
             'autoPlay' => 4000,
             'wrapAround' => true,
             'pageDots' => false,
-            'fade' => ($attr['transition'] !== 'swipe'),
+            'fade' => ($atts['transition'] !== 'swipe'),
         ];
         $flickity_options = json_encode($flickity_options);
 
@@ -233,7 +266,7 @@ class SitkaCarousel
      * Retrieve titles from the database that have been previously searched for and
      * stored
      */
-    public function getFromDb($attr)
+    public function getFromDb($atts)
     {
         global $wpdb;
 
@@ -253,7 +286,7 @@ class SitkaCarousel
                 FROM $table_name
                 WHERE carousel_type = %s
                 AND date_active > (NOW() - INTERVAL 1 MONTH)",
-                $attr['type']
+                $atts['type']
             )
         ) ?? 0;
 
@@ -267,13 +300,13 @@ class SitkaCarousel
             // Use items added within last month
             $query .= "AND date_active > (NOW() - INTERVAL 1 MONTH)
                 ORDER BY date_active DESC";
-            $sql = $wpdb->prepare($query, $attr['type']);
+            $sql = $wpdb->prepare($query, $atts['type']);
         } else {
             // Use most recent Constants::MIN items
             $query .= "AND date_active IS NOT NULL
                 ORDER BY date_active DESC
                 LIMIT %d";
-            $sql = $wpdb->prepare($query, [$attr['type'], Constants::MIN]);
+            $sql = $wpdb->prepare($query, [$atts['type'], Constants::MIN]);
         }
 
         $results = $wpdb->get_results($sql, ARRAY_A) ?? [];
@@ -289,16 +322,16 @@ class SitkaCarousel
      * Checks an "async transient" that will return stale data, and then return
      * to the webserver while PHP-FPM runs the update if needed
      */
-    public function getFromOSRF($attr)
+    public function getFromOSRF($atts)
     {
         $catalogue_url = self::getCatalogueUrl();
-        $carousel_key = md5("{$catalogue_url}_{$attr['carousel_id']}");
+        $carousel_key = md5("{$catalogue_url}_{$atts['carousel_id']}");
         $transient_key = "{$this->transient_key}_{$carousel_key}";
 
         $bibs = get_async_transient(
             $transient_key,
             [$this, 'realGetFromOSRF'],
-            [$transient_key, $attr, $catalogue_url]
+            [$transient_key, $atts, $catalogue_url]
         );
 
         return array_filter((array) $bibs);
@@ -307,7 +340,7 @@ class SitkaCarousel
     /**
      * The real function to return carousel data
      */
-    public function realGetFromOSRF($transient_key, $attr, $catalogue_url)
+    public function realGetFromOSRF($transient_key, $atts, $catalogue_url)
     {
         // Check for a lock for the update of this carousel data and bail if set
         if (get_transient("{$transient_key}_lock")) {
@@ -322,12 +355,12 @@ class SitkaCarousel
         $transient_time = MINUTE_IN_SECONDS;
 
         $carousel = (new OSRFQuery([
-                'service' => 'open-ils.actor',
-                'method' => 'open-ils.actor.carousel.get_contents',
-                'params' => [
-                    $attr['carousel_id']
-                ],
-            ], $catalogue_url))->getResult();
+            'service' => 'open-ils.actor',
+            'method' => 'open-ils.actor.carousel.get_contents',
+            'params' => [
+                $atts['carousel_id']
+            ],
+        ], $catalogue_url))->getResult();
 
         if (!empty($carousel) && !empty($carousel->bibs)) {
             foreach ($carousel->bibs as $bib) {
@@ -369,7 +402,7 @@ class SitkaCarousel
      *
      * @return array
      */
-    private function getOrgCarousels()
+    public function getOrgCarousels()
     {
         $sitka_carousels = [];
 
@@ -377,7 +410,7 @@ class SitkaCarousel
 
         if (!empty($shortname) && $shortname !== 'NA') {
             $catalogur_url = self::getCatalogueUrl();
-            $carousel_key = md5("{$catalogur_url }_{$shortname}");
+            $carousel_key = md5("{$catalogur_url}_{$shortname}");
             $transient_key = "{$this->transient_key}_{$carousel_key}";
 
             $carousels = get_transient($transient_key);
