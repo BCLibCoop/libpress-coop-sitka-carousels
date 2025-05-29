@@ -47,7 +47,7 @@
 }
 
 .sitka-carousel .carousel-item .carousel-item-info {
-  /* display: inline-block; */
+  line-height: 1em;
 }
 
 .sitka-carousel .carousel-item .carousel-item-info .carousel-item-title {
@@ -57,9 +57,4 @@
 .sitka-carousel .carousel-item .carousel-item-info .carousel-item-author {
   font-size: 0.7em;
   font-style: italic;
-}
-
-/* Description is hidden for now */
-.sitka-carousel .carousel-item .carousel-item-description {
-  display: none;
 }

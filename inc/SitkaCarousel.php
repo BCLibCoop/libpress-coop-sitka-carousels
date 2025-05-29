@@ -61,8 +61,6 @@ class SitkaCarousel
      */
     public function frontsideEnqueueStylesScripts()
     {
-        global $post;
-
         $suffix = defined('SCRIPT_DEBUG') && SCRIPT_DEBUG ? '' : '.min';
 
         /**
@@ -138,20 +136,45 @@ class SitkaCarousel
 
     /**
      * Get the proper catalogue endpoint for the current library
+     *
+     * Only used for OSRF Queries
      */
     public static function getCatalogueUrl()
     {
         $catalogue_url = Constants::EG_URL;
 
-        $lib_cat_url = get_option('_coop_sitka_lib_cat_link');
+        $lib_cat_url = trim(get_option('_coop_sitka_lib_cat_link'));
         $cat_suffix = array_filter(explode('.', $lib_cat_url));
         $cat_suffix = end($cat_suffix);
 
         if (!empty($cat_suffix) && !in_array($cat_suffix, Constants::PROD_LIBS)) {
-            $catalogue_url = 'https://' . $cat_suffix . Constants::CATALOGUE_SUFFIX;
+            $catalogue_url = "https://{$cat_suffix}" . Constants::CATALOGUE_SUFFIX;
         }
 
         return $catalogue_url;
+    }
+
+    /**
+     * Get the public catalogue URL for frontend links and images
+     */
+    public static function getOPACUrl()
+    {
+        $opac_url = Constants::EG_URL;
+
+        // Get the library's catalogue link
+        $current_domain = $GLOBALS['current_blog']->domain;
+        // Assume that our main/network blog will always have the subdomain 'libpress'
+        $network_domain = preg_replace('/^libpress\./', '', $GLOBALS['current_site']->domain);
+
+        $cat_link = trim(get_option('_coop_sitka_lib_cat_link'));
+
+        if (!empty($cat_link)) {
+            $opac_url = "https://{$cat_link}" . Constants::CATALOGUE_SUFFIX;
+        } elseif (count(explode('.', $current_domain)) >= 4 && strpos($current_domain, $network_domain) !== false) {
+            $opac_url = 'https://' . str_replace(".{$network_domain}", '', $current_domain) . Constants::CATALOGUE_SUFFIX;
+        }
+
+        return $opac_url;
     }
 
     /**
@@ -202,22 +225,9 @@ class SitkaCarousel
         $atts['size'] = 'medium';
         $atts['no_cover'] = plugins_url('assets/img/nocover.jpg', COOP_SITKA_CAROUSEL_PLUGINFILE);
 
-        // Get the library's catalogue link
-        $current_domain = $GLOBALS['current_blog']->domain;
-        // Assume that our main/network blog will always have the subdomain 'libpress'
-        $network_domain = preg_replace('/^libpress\./', '', $GLOBALS['current_site']->domain);
+        $opac_url = static::getOPACUrl();
 
-        $lib_locg = get_option('_coop_sitka_lib_locg', 1);
-        $cat_link = trim(get_option('_coop_sitka_lib_cat_link'));
-
-        $catalogue_prefix = Constants::EG_URL;
-
-        if (!empty($cat_link)) {
-            $catalogue_prefix = 'https://' . $cat_link . Constants::CATALOGUE_SUFFIX;
-        } elseif (count(explode('.', $current_domain)) >= 4 && strpos($current_domain, $network_domain) !== false) {
-            $catalogue_prefix = 'https://' . str_replace('.' . $network_domain, '', $current_domain)
-                . Constants::CATALOGUE_SUFFIX;
-        }
+        $lib_locg = (int) get_option('_coop_sitka_lib_locg', 1);
 
         // If we have a carousel ID, make the call to Sitka, otherwise, use info
         // from the local DB
@@ -230,7 +240,7 @@ class SitkaCarousel
             // Build catalogue URL
             $row_format['catalogue_url'] = sprintf(
                 "%s/eg/opac/record/%d?locg=%d",
-                $catalogue_prefix,
+                $opac_url,
                 $row_format['bibkey'],
                 $lib_locg,
             );
@@ -238,7 +248,7 @@ class SitkaCarousel
             // Build cover URL here so we can change size in the future if needed
             $row_format['cover_url'] = sprintf(
                 '%s/opac/extras/ac/jacket/%s/r/%d',
-                $catalogue_prefix,
+                $opac_url,
                 $atts['size'],
                 $row_format['bibkey']
             );
@@ -251,6 +261,7 @@ class SitkaCarousel
             'autoPlay' => 4000,
             'wrapAround' => true,
             'pageDots' => false,
+            'groupCells' => ($atts['transition'] !== 'swipe'),
             'fade' => ($atts['transition'] !== 'swipe'),
         ];
         $flickity_options = json_encode($flickity_options);
