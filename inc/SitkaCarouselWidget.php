@@ -19,49 +19,10 @@ class SitkaCarouselWidget extends \WP_Widget
             ]
         );
     }
-    /**
-     * Outputs the widget
-     *
-     * @param array $args     Display arguments including 'before_title', 'after_title',
-     *                        'before_widget', and 'after_widget'.
-     * @param array $instance Settings for the current Recent Posts widget instance.
-     */
-    public function widget($args, $instance)
-    {
-        SitkaCarousel::$instance->frontsideEnqueueStylesScripts();
-
-        $instance['transition'] = isset($instance['transition']) ? esc_attr($instance['transition']) : Constants::TRANSITION[0];
-        $instance['carousel_id'] = isset($instance['carousel_id']) ? absint($instance['carousel_id']) : 0;
-
-        $widget = SitkaCarousel::$instance->render($instance);
-
-        echo $widget;
-
-        if ($this->is_block_preview() && strpos($widget, '<!-- Could not find') !== false) {
-            echo '<code>Unable to find any slides, please check the carousel settings.</code>';
-        }
-    }
 
     private function is_block_preview()
     {
         return (defined('IFRAME_REQUEST') && IFRAME_REQUEST && !empty($_GET['legacy-widget-preview'])) || wp_is_rest_endpoint();
-    }
-
-    /**
-     * Updates instance settings
-     *
-     * @param array $new_instance New settings for this instance as input by the user via
-     *                            WP_Widget::form().
-     * @param array $old_instance Old settings for this instance.
-     * @return array Updated settings to save.
-     */
-    public function update($new_instance, $old_instance)
-    {
-        $instance = $old_instance;
-        $instance['transition'] = sanitize_text_field($new_instance['transition'] ?? '');
-        $instance['carousel_id'] = (int) ($new_instance['carousel_id'] ?? 0);
-
-        return $instance;
     }
 
     /**
@@ -104,5 +65,49 @@ class SitkaCarouselWidget extends \WP_Widget
             <p class="description">No carousels exist, one must be created in Sitka first</p>
         <?php endif; ?>
         <?php
+    }
+
+    /**
+     * Updates instance settings
+     *
+     * @param array $new_instance New settings for this instance as input by the user via
+     *                            WP_Widget::form().
+     * @param array $old_instance Old settings for this instance.
+     * @return array Updated settings to save.
+     */
+    public function update($new_instance, $old_instance)
+    {
+        $instance = $old_instance;
+        $instance['transition'] = sanitize_text_field($new_instance['transition'] ?? '');
+        $instance['carousel_id'] = (int) ($new_instance['carousel_id'] ?? 0);
+
+        return $instance;
+    }
+
+    /**
+     * Outputs the widget
+     *
+     * @param array $args     Display arguments including 'before_title', 'after_title',
+     *                        'before_widget', and 'after_widget'.
+     * @param array $instance Settings for the current Recent Posts widget instance.
+     */
+    public function widget($args, $instance)
+    {
+        SitkaCarousel::$instance->frontsideEnqueueStylesScripts();
+
+        $instance['transition'] = isset($instance['transition']) ? esc_attr($instance['transition']) : Constants::TRANSITION[0];
+        $instance['carousel_id'] = isset($instance['carousel_id']) ? absint($instance['carousel_id']) : 0;
+
+        echo $args['before_widget'];
+
+        $widget = SitkaCarousel::$instance->render($instance);
+
+        echo $widget;
+
+        if ($this->is_block_preview() && strpos($widget, '<!-- Could not find') !== false) {
+            echo '<code>Unable to find any slides, please check the carousel settings.</code>';
+        }
+
+        echo $args['after_widget'];
     }
 }
