@@ -27,23 +27,30 @@
 
 .sitka-carousel .carousel-item {
   margin-right: 5%;
+  /* Set a minimum width for the carousel item so we don't show more than one in existing narrow highlight columns */
+  min-width: 200px;
 }
 
 .sitka-carousel .carousel-item .carousel-item-cover {
   display: inline-block;
+  position: relative;
+  min-height: 225px;
+  min-width: 150px;
 }
 
+/* Max jacket dimensions seem to be 240x360, but we're keeping the old max height of 225px and the natural width */
 .sitka-carousel .carousel-item .carousel-item-image {
-  /* TODO: Allow natural aspect ratios. Max jacket dimensions seem to be 240x360 */
-  width: 150px !important;
-  height: 225px !important;
+  max-height: 225px;
+  position: relative;
   z-index: 10;
-  position: absolute;
 }
 
 .sitka-carousel .carousel-item .carousel-item-image-default {
+  position: absolute;
+  bottom: 25%;
+  right: 25%;
+  width: 50%;
   z-index: 5;
-  position: relative;
 }
 
 .sitka-carousel .carousel-item .carousel-item-info {

@@ -5,9 +5,8 @@
                 <div class="carousel-item">
                     <a href="<?= esc_url($row['catalogue_url']) ?>">
                         <div class="carousel-item-cover">
-                            <img alt="" src="<?= $row['cover_url'] ?>" class="carousel-item-image" decoding="async" <?= $index == 0 ? '' : 'loading="lazy"' ?>>
-                            <?php // TODO: Hide/show no-cover image properly (not found covers will 404 but also return a 1x1 png) ?>
-                            <img alt="" src="<?= $atts['no_cover'] ?>" class="carousel-item-image carousel-item-image-default" decoding="async">
+                            <img src="<?= $row['cover_url'] ?>" alt="" class="carousel-item-image" decoding="async" <?= $index == 0 ? '' : 'loading="lazy"' ?>>
+                            <img src="<?= $atts['no_cover'] ?>" alt="" class="carousel-item-image carousel-item-image-default" decoding="async">
                         </div>
                         <div class="carousel-item-info">
                             <span class="carousel-item-title"><?= esc_html($row['title']) ?></span>
