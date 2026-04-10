@@ -20,9 +20,11 @@ class SitkaCarouselWidget extends \WP_Widget
         );
     }
 
-    private function is_block_preview()
+    private function is_block_preview() // phpcs:ignore PSR1.Methods.CamelCapsMethodName.NotCamelCaps
     {
-        return (defined('IFRAME_REQUEST') && IFRAME_REQUEST && !empty($_GET['legacy-widget-preview'])) || wp_is_rest_endpoint();
+        return (
+            defined('IFRAME_REQUEST') && IFRAME_REQUEST && !empty($_GET['legacy-widget-preview'])
+        ) || wp_is_rest_endpoint();
     }
 
     /**
@@ -63,8 +65,7 @@ class SitkaCarouselWidget extends \WP_Widget
 
         <?php if ($no_carousels) : ?>
             <p class="description">No carousels exist, one must be created in Sitka first</p>
-        <?php endif; ?>
-        <?php
+        <?php endif;
     }
 
     /**
@@ -95,8 +96,10 @@ class SitkaCarouselWidget extends \WP_Widget
     {
         SitkaCarousel::$instance->frontsideEnqueueStylesScripts();
 
-        $instance['transition'] = isset($instance['transition']) ? esc_attr($instance['transition']) : Constants::TRANSITION[0];
-        $instance['carousel_id'] = isset($instance['carousel_id']) ? absint($instance['carousel_id']) : 0;
+        $instance['transition'] = isset($instance['transition']) ?
+            esc_attr($instance['transition']) : Constants::TRANSITION[0];
+        $instance['carousel_id'] = isset($instance['carousel_id']) ?
+            absint($instance['carousel_id']) : 0;
 
         echo $args['before_widget'];
 

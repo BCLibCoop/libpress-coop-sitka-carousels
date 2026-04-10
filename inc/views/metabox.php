@@ -1,3 +1,4 @@
+<?php defined('ABSPATH') || die(1); ?>
 <p>Sitka Carousels can be added to this Highlight by inserting one or more shortcodes into the Highlight text</p>
 <p>Shortcodes take the following format:</p>
 <code>[sitka_carousel carousel_id="48" transition="fade"]</code>
